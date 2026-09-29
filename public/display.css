@@ -1,0 +1,553 @@
+/* Welcome screen (kiosk display). Everything scales with the viewport so it works on 1080p and 4K alike. */
+:root {
+  --accent: #4f8cff;
+  --blur: 24px;
+  --dim: 0.25;
+  --glass: rgba(255, 255, 255, 0.13);
+  --glass-strong: rgba(255, 255, 255, 0.2);
+  --glass-border: rgba(255, 255, 255, 0.28);
+  --glass-highlight: rgba(255, 255, 255, 0.25);
+  --text: #ffffff;
+  --muted: color-mix(in srgb, var(--text) 78%, transparent);
+  --faint: color-mix(in srgb, var(--text) 58%, transparent);
+  --tint: color-mix(in srgb, var(--text) 8%, transparent);
+  --tint-strong: color-mix(in srgb, var(--text) 16%, transparent);
+  --accent-text: var(--accent);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --veil: 0, 0, 0;
+  --text-shadow: 0 0.15rem 1rem rgba(0, 0, 0, 0.35);
+  --shadow: 0 1.2rem 3.5rem rgba(0, 0, 0, 0.35);
+  --sun: #ffd166;
+  --moon: #dfe6ff;
+  --rain: #9fd3ff;
+  --ease: cubic-bezier(0.22, 0.8, 0.2, 1);
+  color-scheme: dark;
+}
+
+/* Dark text (for bright background images): bright glass, white veil instead of darkening. */
+body[data-tone="light"] {
+  --glass: rgba(255, 255, 255, 0.58);
+  --glass-strong: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+  --veil: 255, 255, 255;
+  --text-shadow: 0 0 1.2rem rgba(255, 255, 255, 0.8);
+  --shadow: 0 1.2rem 3.5rem rgba(20, 30, 50, 0.18);
+  --sun: #eb9a00;
+  --moon: #56627a;
+  --rain: #1b6fd6;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  /* 1rem ≈ 17px at 1080p, 34px at 4K */
+  font-size: clamp(12px, 1.6vmin, 48px);
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: #0b1020;
+  color: var(--text);
+  font-family: "Segoe UI Variable Display", "Segoe UI", "Inter", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.hide-cursor, body.hide-cursor * { cursor: none !important; }
+
+button { font: inherit; color: inherit; }
+
+[hidden] { display: none !important; }
+
+/* --- Background ------------------------------------------------------------ */
+
+.bg {
+  position: fixed;
+  inset: -2%;
+  background:
+    radial-gradient(60% 70% at 15% 20%, color-mix(in srgb, var(--accent) 70%, transparent) 0%, transparent 60%),
+    radial-gradient(50% 60% at 85% 25%, rgba(155, 92, 255, 0.55) 0%, transparent 60%),
+    radial-gradient(70% 60% at 60% 95%, rgba(0, 194, 168, 0.45) 0%, transparent 60%),
+    radial-gradient(40% 40% at 40% 50%, rgba(255, 140, 90, 0.25) 0%, transparent 70%),
+    linear-gradient(160deg, #0d1330 0%, #101a3a 50%, #0a1426 100%);
+  background-size: cover;
+  background-position: center;
+  animation: drift 60s ease-in-out infinite alternate;
+}
+
+.bg.has-image { background: center / cover no-repeat var(--bg-image); }
+
+@keyframes drift {
+  from { transform: scale(1) translate(0, 0); }
+  to   { transform: scale(1.06) translate(-1%, -1%); }
+}
+
+.dim {
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(var(--veil), 0.35) 0%, transparent 22%, transparent 70%, rgba(var(--veil), 0.45) 100%),
+    rgba(var(--veil), var(--dim));
+}
+
+/* --- Glass ----------------------------------------------------------------- */
+
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: blur(var(--blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
+}
+
+/* --- Top bar --------------------------------------------------------------- */
+
+.top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 2.2rem 2.8rem;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.top > * { pointer-events: auto; }
+
+.top-left {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+}
+
+.brand-logo {
+  max-height: 4.6rem;
+  max-width: 18rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0.2rem 0.8rem rgba(0, 0, 0, 0.35));
+}
+
+.weather-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 1.2rem 0.6rem 0.9rem;
+  border-radius: 999px;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.weather-chip .wi { width: 2.2rem; height: 2.2rem; }
+.weather-chip strong { font-weight: 600; }
+.weather-chip .place { color: var(--muted); font-size: 1rem; }
+
+.clock { text-align: right; text-shadow: var(--text-shadow); }
+.clock-time { font-size: 4.2rem; font-weight: 300; letter-spacing: 0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.clock-date { margin-top: 0.4rem; font-size: 1.2rem; color: var(--muted); }
+
+/* --- Views ----------------------------------------------------------------- */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 9rem 4rem 10rem;
+}
+
+.view {
+  grid-area: 1 / 1;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(1.5rem) scale(0.98);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), visibility 0s linear 0.6s;
+}
+
+.view.active {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), visibility 0s;
+}
+
+.card {
+  position: relative;
+  width: min(100%, 72rem);
+  border-radius: 2.4rem;
+  padding: 3.2rem 3.6rem;
+  text-align: center;
+}
+
+/* --- Home: welcome slides -------------------------------------------------- */
+
+.slides {
+  display: grid;
+  width: min(100%, 76rem);
+}
+
+.slide {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+}
+
+.slide.enter .card { animation: card-in 0.9s var(--ease) both; }
+.slide.leave .card { animation: card-out 0.6s var(--ease) both; }
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(2.5rem) scale(0.96); filter: blur(8px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes card-out {
+  from { opacity: 1; transform: none; filter: none; }
+  to   { opacity: 0; transform: translateY(-2rem) scale(0.97); filter: blur(8px); }
+}
+
+.slide.enter .stagger > * { animation: rise 0.7s var(--ease) both; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(1.2rem); }
+  to   { opacity: 1; transform: none; }
+}
+
+.kicker {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.kicker::after {
+  content: "";
+  display: block;
+  width: 3.2rem;
+  height: 0.25rem;
+  margin: 0.9rem auto 0;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.company-logo {
+  display: block;
+  margin: 1.6rem auto 0.4rem;
+  max-width: min(32rem, 70%);
+  max-height: 9rem;
+  object-fit: contain;
+  padding: 1rem 1.6rem;
+  border-radius: 1.2rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0.6rem 1.8rem rgba(0, 0, 0, 0.2);
+}
+
+.company-name {
+  margin: 0.8rem 0 0;
+  font-size: 4.2rem;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.company-logo + .company-name { font-size: 2.6rem; margin-top: 1rem; }
+
+.message {
+  margin: 1.2rem auto 0;
+  max-width: 48rem;
+  font-size: 1.5rem;
+  line-height: 1.45;
+  color: var(--muted);
+  text-wrap: balance;
+}
+
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.6rem 2.2rem;
+  margin-top: 2.6rem;
+}
+
+.person {
+  width: 10.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.people.compact .person { width: 8.6rem; }
+
+.person .avatar {
+  width: 6.4rem;
+  height: 6.4rem;
+  border-radius: 50%;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  font-weight: 600;
+  border: 0.2rem solid var(--accent);
+  box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.25);
+  background: var(--glass-strong);
+  color: #fff;
+}
+
+.people.compact .avatar { width: 5.2rem; height: 5.2rem; font-size: 1.6rem; }
+
+.person .name { margin-top: 0.8rem; font-size: 1.2rem; font-weight: 600; line-height: 1.25; }
+.person .title { margin-top: 0.2rem; font-size: 0.95rem; color: var(--faint); line-height: 1.25; }
+
+.host {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 2.2rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent-soft);
+  font-size: 1.05rem;
+  color: var(--muted);
+}
+
+.host > span:first-child { color: var(--accent-text); }
+.host b { color: var(--text); font-weight: 600; }
+
+.pager {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 1.8rem;
+}
+
+.pager i {
+  position: relative;
+  overflow: hidden;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--tint-strong);
+  transition: width 0.4s var(--ease), background 0.4s;
+}
+
+.pager i.done { background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.pager i.on { width: 4rem; }
+
+/* Fills up while the current company is shown (duration = rotation time). */
+.pager i.on b {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  border-radius: inherit;
+  transform-origin: left;
+  animation: rotation-progress var(--rotation, 12s) linear forwards;
+}
+
+@keyframes rotation-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.idle .company-name { font-size: 4.6rem; }
+.idle .site { margin-top: 0.4rem; font-size: 2rem; color: var(--muted); font-weight: 500; }
+
+/* --- Weather view ---------------------------------------------------------- */
+
+.weather-card { width: min(100%, 78rem); text-align: left; }
+
+.wx-now {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 2.2rem;
+}
+
+.wx-now .wi { width: 8rem; height: 8rem; }
+.wx-temp { font-size: 6rem; font-weight: 250; line-height: 1; }
+.wx-desc { font-size: 1.7rem; margin-top: 0.3rem; }
+.wx-place { font-size: 1.1rem; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+
+.wx-facts { display: grid; gap: 0.6rem; font-size: 1.15rem; color: var(--muted); text-align: right; }
+.wx-facts b { color: var(--text); font-weight: 600; }
+
+.wx-hours {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.6rem;
+  margin-top: 2.2rem;
+  padding: 1.2rem 0.6rem;
+  border-radius: 1.4rem;
+  background: var(--tint);
+  text-align: center;
+}
+
+.wx-hours .wi { width: 2.4rem; height: 2.4rem; margin: 0.4rem auto; display: block; }
+.wx-hours .h { font-size: 1rem; color: var(--muted); }
+.wx-hours .t { font-size: 1.3rem; font-weight: 600; }
+.wx-hours .p { font-size: 0.85rem; color: var(--rain); min-height: 1.1em; }
+
+.wx-days {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.wx-day {
+  padding: 1.1rem 0.8rem;
+  border-radius: 1.4rem;
+  background: var(--tint);
+  text-align: center;
+}
+
+.wx-day .d { font-size: 1.15rem; font-weight: 600; }
+.wx-day .wi { width: 3rem; height: 3rem; margin: 0.5rem auto; display: block; }
+.wx-day .r { font-size: 1.2rem; }
+.wx-day .r span { color: var(--faint); margin-left: 0.4rem; }
+.wx-day .p { font-size: 0.9rem; color: var(--rain); margin-top: 0.2rem; }
+
+/* --- Wi-Fi view ------------------------------------------------------------ */
+
+.wifi-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3rem;
+  align-items: center;
+  text-align: left;
+}
+
+.wifi-card .kicker::after { margin-left: 0; }
+.wifi-card h2 { margin: 0.6rem 0 1.6rem; font-size: 3rem; font-weight: 650; }
+.wifi-row { margin-top: 1.2rem; }
+.wifi-row .l { font-size: 1rem; color: var(--faint); text-transform: uppercase; letter-spacing: 0.14em; }
+.wifi-row .v { font-size: 2.2rem; font-weight: 600; word-break: break-all; font-variant-ligatures: none; }
+.wifi-row .v.mono { font-family: "Cascadia Mono", "SF Mono", Consolas, "Roboto Mono", monospace; letter-spacing: 0.04em; }
+.wifi-note { margin-top: 1.6rem; color: var(--muted); font-size: 1.15rem; line-height: 1.4; }
+
+.qr {
+  width: 17rem;
+  padding: 1rem;
+  border-radius: 1.4rem;
+  background: #fff;
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.3);
+}
+
+.qr img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.qr-hint { margin-top: 0.8rem; font-size: 0.95rem; color: var(--muted); text-align: center; }
+
+/* --- Dock ------------------------------------------------------------------ */
+
+.dock {
+  position: fixed;
+  left: 50%;
+  bottom: 2.2rem;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-radius: 1.8rem;
+  z-index: 5;
+}
+
+.dock button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 7.2rem;
+  padding: 0.8rem 1.2rem 0.7rem;
+  border: 0;
+  border-radius: 1.3rem;
+  background: transparent;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s var(--ease), transform 0.2s var(--ease);
+}
+
+.dock button:active { transform: scale(0.95); }
+.dock button.active { background: var(--tint-strong); }
+.dock .ico svg { width: 2rem; height: 2rem; display: block; }
+
+.dock button.active .ico { color: var(--accent-text); }
+.dock button::after {
+  content: "";
+  width: 1.4rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.dock button.active::after { opacity: 1; }
+
+/* Progress bar showing when the screen returns to "Home". */
+.dock .timeout {
+  position: absolute;
+  left: 1.4rem;
+  right: 1.4rem;
+  bottom: 0.25rem;
+  height: 0.2rem;
+  border-radius: 999px;
+  background: var(--accent);
+  transform-origin: left;
+  transform: scaleX(0);
+  opacity: 0;
+}
+
+.dock .timeout.run { opacity: 1; animation: countdown linear forwards; }
+@keyframes countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* --- Weather icons --------------------------------------------------------- */
+
+.wi { color: var(--text); overflow: visible; }
+.wi .sun { color: var(--sun); }
+.wi .moon { color: var(--moon); }
+.wi .drop { color: var(--rain); }
+.wi .bolt { color: var(--sun); }
+
+/* --- Misc ------------------------------------------------------------------ */
+
+.preview-badge, .offline {
+  position: fixed;
+  left: 50%;
+  top: 1.2rem;
+  transform: translateX(-50%);
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  z-index: 10;
+}
+
+.preview-badge { background: rgba(255, 196, 0, 0.9); color: #222; font-weight: 600; }
+.offline { top: auto; bottom: 0.6rem; background: rgba(220, 60, 60, 0.85); color: #fff; }
+
+@media (max-aspect-ratio: 1/1) {
+  /* Portrait screens (stele) */
+  html { font-size: clamp(12px, 2vmin, 48px); }
+  .wifi-card { grid-template-columns: 1fr; text-align: center; }
+  .wifi-card .kicker::after { margin-left: auto; }
+  .qr { margin: 0 auto; }
+  .wx-hours { grid-template-columns: repeat(4, 1fr); }
+  .wx-days { grid-template-columns: repeat(3, 1fr); }
+  .wx-now { grid-template-columns: auto 1fr; }
+  .wx-facts { grid-column: 1 / -1; text-align: left; grid-template-columns: repeat(3, auto); justify-content: start; gap: 1.6rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg { animation: none; }
+  .slide.enter .card, .slide.leave .card, .slide.enter .stagger > * { animation-duration: 0.01s; }
+}

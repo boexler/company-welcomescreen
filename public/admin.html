@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Welcome Screen – Admin</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/visits">
+      <img src="/favicon.svg" alt="" width="28" height="28">
+      <span>Welcome Screen <strong>Admin</strong></span>
+    </a>
+    <nav class="nav">
+      <a href="#/visits" data-nav="visits" data-i18n="admin.nav.visits">Visits</a>
+      <a href="#/companies" data-nav="companies" data-i18n="admin.nav.companies">Companies</a>
+      <a href="#/layouts" data-nav="layouts" data-i18n="admin.nav.layouts">Layout</a>
+      <a href="#/settings" data-nav="settings" data-i18n="admin.nav.settings">Settings</a>
+      <a href="/" target="_blank" rel="noopener" data-i18n="admin.nav.openDisplay">Open display ↗</a>
+    </nav>
+  </header>
+  <main id="app" class="container" aria-live="polite"></main>
+  <div id="toasts" class="toasts" role="status"></div>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

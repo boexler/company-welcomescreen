@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>Welcome Screen</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/display.css">
+</head>
+<body>
+  <div id="bg" class="bg" aria-hidden="true"></div>
+  <div id="dim" class="dim" aria-hidden="true"></div>
+
+  <header class="top">
+    <div class="top-left">
+      <img id="brand-logo" class="brand-logo" alt="" hidden>
+      <button id="weather-chip" class="weather-chip glass" type="button" data-view="weather" hidden></button>
+    </div>
+    <div class="clock" aria-live="off">
+      <div id="clock-time" class="clock-time">--:--</div>
+      <div id="clock-date" class="clock-date"></div>
+    </div>
+  </header>
+
+  <main id="stage" class="stage">
+    <section id="view-home" class="view active" data-i18n-aria="display.welcome"></section>
+    <section id="view-weather" class="view" data-i18n-aria="display.weather"></section>
+    <section id="view-wifi" class="view" data-i18n-aria="display.wifiKicker"></section>
+  </main>
+
+  <nav id="dock" class="dock glass" data-i18n-aria="display.navigation">
+    <button type="button" data-view="home" class="active"><span class="ico" data-icon="home"></span><span data-i18n="display.home">Home</span></button>
+    <button type="button" data-view="weather" hidden><span class="ico" data-icon="weather"></span><span data-i18n="display.weather">Weather</span></button>
+    <button type="button" data-view="wifi" hidden><span class="ico" data-icon="wifi"></span><span data-i18n="display.wifi">Wi-Fi</span></button>
+  </nav>
+
+  <div id="preview-badge" class="preview-badge" hidden></div>
+  <div id="offline" class="offline" data-i18n="display.offline" hidden>No connection to the server …</div>
+
+  <script type="module" src="/display.js"></script>
+</body>
+</html>

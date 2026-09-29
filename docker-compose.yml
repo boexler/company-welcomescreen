@@ -1,0 +1,31 @@
+services:
+  welcomescreen:
+    build: .
+    container_name: company-welcomescreen
+    restart: unless-stopped
+    ports:
+      # Choose any host port (HOST_PORT); inside the container the app always runs on 3000.
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      # Token for the admin area, REST write access and MCP. Empty = generated on first start (/data/.admin-token, printed in the container log).
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      # Public base URL (optional), passed to MCP clients for relative links.
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      # Time zone for the clock, "today"/"tomorrow" and the day change of the display.
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Berlin}
+      # Initial values for settings (optional, can be changed later in the admin area).
+      APP_LANGUAGE: ${APP_LANGUAGE:-en}
+      SITE_NAME: ${SITE_NAME:-}
+      WEATHER_LOCATION: ${WEATHER_LOCATION:-}
+      WEATHER_LATITUDE: ${WEATHER_LATITUDE:-}
+      WEATHER_LONGITUDE: ${WEATHER_LONGITUDE:-}
+      # User/group that should own the files in DATA_PATH.
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      # DATA_PATH = absolute path on the host (e.g. /opt/company-welcomescreen/data).
+      # Without DATA_PATH the Docker volume "welcomescreen-data" is used.
+      - ${DATA_PATH:-welcomescreen-data}:/data
+
+volumes:
+  welcomescreen-data:
