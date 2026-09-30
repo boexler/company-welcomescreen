@@ -196,15 +196,31 @@ export function resolveEmployeeId(ref, companyRef) {
   return rows[0].id;
 }
 
+/** photo_url is the own photo; image_url is what the screen shows (own photo, else the picture from the pool). */
 function presentEmployee(row) {
-  const { photo_image_id, ...rest } = row;
-  return { ...rest, photo_url: imageUrl(photo_image_id) };
+  const { photo_image_id, avatar_image_id, ...rest } = row;
+  return { ...rest, photo_url: imageUrl(photo_image_id), image_url: imageUrl(photo_image_id ?? avatar_image_id) };
 }
 
 const EMPLOYEE_SQL = `
-  SELECT e.id, e.company_id, c.name AS company_name, e.name, e.title, e.photo_image_id, e.sort_order, e.created_at, e.updated_at
-  FROM employees e JOIN companies c ON c.id = e.company_id
+  SELECT e.id, e.company_id, c.name AS company_name, e.name, e.title, e.photo_image_id, e.avatar_id, e.avatar_color,
+         a.image_id AS avatar_image_id, e.sort_order, e.created_at, e.updated_at
+  FROM employees e JOIN companies c ON c.id = e.company_id LEFT JOIN avatars a ON a.id = e.avatar_id
 `;
+
+/** Pool picture of an employee: ID or name; empty/null removes it. */
+function cleanAvatarRef(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  return resolveAvatarId(value);
+}
+
+/** Background color of the initials; empty/null = automatic color derived from the name. */
+function cleanAvatarColor(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  return cleanColor(value, msg('fields.avatarColor'));
+}
 
 export function listEmployees({ company } = {}) {
   if (company != null && company !== '') {
@@ -218,14 +234,16 @@ export function getEmployee(ref, company) {
   return presentEmployee(db.prepare(`${EMPLOYEE_SQL} WHERE e.id = ?`).get(id));
 }
 
-export function createEmployee({ company, name, title, photo, sort_order }) {
+export function createEmployee({ company, name, title, photo, avatar, avatar_id, avatar_color, sort_order }) {
   return tx(() => {
     const companyId = resolveCompanyId(company);
     const cleanName = cleanText(name, { field: msg('fields.name'), required: true, max: 120 });
+    const avatarId = cleanAvatarRef(avatar_id ?? avatar) ?? null;
+    const color = cleanAvatarColor(avatar_color) ?? null;
     const photoId = storeImage(photo);
     const id = conflictOnUnique(
-      () => db.prepare('INSERT INTO employees (company_id, name, title, photo_image_id, sort_order) VALUES (?, ?, ?, ?, ?)')
-        .run(companyId, cleanName, cleanText(title, { field: msg('fields.position'), max: 120 }) ?? null, photoId,
+      () => db.prepare('INSERT INTO employees (company_id, name, title, photo_image_id, avatar_id, avatar_color, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(companyId, cleanName, cleanText(title, { field: msg('fields.position'), max: 120 }) ?? null, photoId, avatarId, color,
           cleanInt(sort_order, { field: msg('fields.sortOrder'), min: -9999, max: 9999 }) ?? 0)
         .lastInsertRowid,
       'errors.employeeExists', { name: cleanName },
@@ -234,18 +252,22 @@ export function createEmployee({ company, name, title, photo, sort_order }) {
   });
 }
 
-export function updateEmployee(ref, { company, name, title, photo, remove_photo, sort_order }) {
+export function updateEmployee(ref, { company, name, title, photo, remove_photo, avatar, avatar_id, avatar_color, sort_order }) {
   return tx(() => {
     const id = resolveEmployeeId(ref);
     const current = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
     const companyId = company != null && company !== '' ? resolveCompanyId(company) : current.company_id;
+    const avatarInput = avatar_id !== undefined ? avatar_id : avatar;
+    const avatarId = avatarInput === undefined ? current.avatar_id : cleanAvatarRef(avatarInput);
+    const color = avatar_color === undefined ? current.avatar_color : cleanAvatarColor(avatar_color);
     const photoId = replaceImage(current.photo_image_id, photo, truthy(remove_photo));
     const newName = cleanText(name, { field: msg('fields.name'), required: true, max: 120 }) ?? current.name;
     const newTitle = title === undefined ? current.title : cleanText(title, { field: msg('fields.position'), max: 120 });
     const newSort = cleanInt(sort_order, { field: msg('fields.sortOrder'), min: -9999, max: 9999 }) ?? current.sort_order;
     conflictOnUnique(
-      () => db.prepare("UPDATE employees SET company_id = ?, name = ?, title = ?, photo_image_id = ?, sort_order = ?, updated_at = datetime('now') WHERE id = ?")
-        .run(companyId, newName, newTitle, photoId, newSort, id),
+      () => db.prepare(`UPDATE employees SET company_id = ?, name = ?, title = ?, photo_image_id = ?, avatar_id = ?, avatar_color = ?, sort_order = ?,
+                        updated_at = datetime('now') WHERE id = ?`)
+        .run(companyId, newName, newTitle, photoId, avatarId, color, newSort, id),
       'errors.employeeExists', { name: newName },
     );
     if (companyId !== current.company_id) db.prepare('DELETE FROM visit_employees WHERE employee_id = ?').run(id);
@@ -264,6 +286,53 @@ export function deleteEmployee(ref) {
 }
 
 // ---------------------------------------------------------------------------
+// Avatar pool (default pictures employees can use instead of their own photo)
+// ---------------------------------------------------------------------------
+
+export function resolveAvatarId(ref) {
+  const row = isId(ref)
+    ? db.prepare('SELECT id FROM avatars WHERE id = ?').get(Number(ref))
+    : db.prepare('SELECT id FROM avatars WHERE name = ? COLLATE NOCASE ORDER BY id LIMIT 1').get(String(ref ?? '').trim());
+  if (!row) throw new HttpError(404, 'errors.avatarNotFound', { ref });
+  return row.id;
+}
+
+function presentAvatar(row) {
+  const { image_id, ...rest } = row;
+  return { ...rest, image_url: imageUrl(image_id) };
+}
+
+const AVATAR_SQL = `
+  SELECT a.id, a.name, a.image_id, a.created_at, (SELECT COUNT(*) FROM employees e WHERE e.avatar_id = a.id) AS employee_count
+  FROM avatars a
+`;
+
+export function listAvatars() {
+  return db.prepare(`${AVATAR_SQL} ORDER BY a.id`).all().map(presentAvatar);
+}
+
+export function createAvatar({ name, image }) {
+  return tx(() => {
+    const cleanName = cleanText(name, { field: msg('fields.name'), max: 80 }) ?? msg('fields.avatar');
+    const imageId = storeImage(image);
+    if (!imageId) throw new HttpError(400, 'errors.required', { field: msg('fields.image') });
+    const id = db.prepare('INSERT INTO avatars (name, image_id) VALUES (?, ?)').run(cleanName, imageId).lastInsertRowid;
+    return presentAvatar(db.prepare(`${AVATAR_SQL} WHERE a.id = ?`).get(id));
+  });
+}
+
+/** Employees using the picture fall back to their initials. */
+export function deleteAvatar(ref) {
+  return tx(() => {
+    const id = resolveAvatarId(ref);
+    const row = db.prepare('SELECT * FROM avatars WHERE id = ?').get(id);
+    db.prepare('DELETE FROM avatars WHERE id = ?').run(id);
+    deleteImage(row.image_id);
+    return { deleted: true, id, name: row.name };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Visits
 // ---------------------------------------------------------------------------
 
@@ -272,10 +341,15 @@ const VISIT_SQL = `
   FROM visits v JOIN companies c ON c.id = v.company_id
 `;
 
+/**
+ * Employees shown for a visit, in the order chosen for the visit (default: alphabetical).
+ * With all_employees the rows in visit_employees only define the order; employees without a row follow by name.
+ */
 function visitEmployees(visit) {
   const rows = visit.all_employees
-    ? db.prepare(`${EMPLOYEE_SQL} WHERE e.company_id = ? ORDER BY e.sort_order, e.name`).all(visit.company_id)
-    : db.prepare(`${EMPLOYEE_SQL} JOIN visit_employees ve ON ve.employee_id = e.id WHERE ve.visit_id = ? ORDER BY e.sort_order, e.name`).all(visit.id);
+    ? db.prepare(`${EMPLOYEE_SQL} LEFT JOIN visit_employees ve ON ve.employee_id = e.id AND ve.visit_id = ?
+                  WHERE e.company_id = ? ORDER BY ve.employee_id IS NULL, ve.position, e.name`).all(visit.id, visit.company_id)
+    : db.prepare(`${EMPLOYEE_SQL} JOIN visit_employees ve ON ve.employee_id = e.id WHERE ve.visit_id = ? ORDER BY ve.position, e.name`).all(visit.id);
   return rows.map(presentEmployee);
 }
 
@@ -284,10 +358,11 @@ function visitHosts(visitId) {
 }
 
 function presentVisit(row) {
-  const { logo_image_id, all_employees, ...rest } = row;
+  const { logo_image_id, all_employees, show_avatars, ...rest } = row;
   return {
     ...rest,
     all_employees: Boolean(all_employees),
+    show_avatars: Boolean(show_avatars),
     company_logo_url: imageUrl(logo_image_id),
     hosts: visitHosts(row.id),
     employees: visitEmployees(row),
@@ -317,10 +392,11 @@ export function listVisits({ from, to, date, company } = {}) {
   return db.prepare(`${VISIT_SQL} WHERE ${where} ORDER BY v.start_date, c.name`).all(...params).map(presentVisit);
 }
 
+/** Stores the employees of a visit in the given order (the selection, or with all_employees only the order). */
 function setVisitEmployees(visitId, companyId, employees) {
   db.prepare('DELETE FROM visit_employees WHERE visit_id = ?').run(visitId);
-  const insert = db.prepare('INSERT OR IGNORE INTO visit_employees (visit_id, employee_id) VALUES (?, ?)');
-  for (const ref of employees) insert.run(visitId, resolveEmployeeId(ref, companyId));
+  const insert = db.prepare('INSERT OR IGNORE INTO visit_employees (visit_id, employee_id, position) VALUES (?, ?, ?)');
+  employees.forEach((ref, i) => insert.run(visitId, resolveEmployeeId(ref, companyId), i));
 }
 
 const MAX_HOSTS = 10;
@@ -365,9 +441,10 @@ function normalizeEmployeeList(employees) {
 
 /**
  * Schedules a visit. Without `employees` (or with all_employees = true) every employee of the company is shown;
- * otherwise only the listed ones (IDs or names).
+ * otherwise only the listed ones (IDs or names). all_employees = false with an empty list shows no employees.
+ * The order of `employees` is the order on the screen (with all_employees = true it only sets the order).
  */
-export function createVisit({ company, start_date, date, end_date, headline, message, hosts, host, employees, all_employees }) {
+export function createVisit({ company, start_date, date, end_date, headline, message, hosts, host, employees, all_employees, show_avatars }) {
   return tx(() => {
     const companyId = resolveCompanyId(company);
     const start = parseDate(start_date ?? date);
@@ -376,19 +453,20 @@ export function createVisit({ company, start_date, date, end_date, headline, mes
     const list = normalizeEmployeeList(employees);
     const all = all_employees !== undefined ? truthy(all_employees) : !list?.length;
     const hostList = normalizeHosts(hosts, host) ?? [];
-    const id = db.prepare('INSERT INTO visits (company_id, start_date, end_date, headline, message, all_employees) VALUES (?, ?, ?, ?, ?, ?)')
+    const id = db.prepare('INSERT INTO visits (company_id, start_date, end_date, headline, message, all_employees, show_avatars) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(companyId, start, end,
         cleanText(headline, { field: msg('fields.headline'), max: 200 }) ?? null,
         cleanText(message, { field: msg('fields.message'), max: 1000 }) ?? null,
-        all ? 1 : 0)
+        all ? 1 : 0,
+        truthy(show_avatars) ? 1 : 0)
       .lastInsertRowid;
     setVisitHosts(id, hostList);
-    if (!all && list) setVisitEmployees(id, companyId, list);
+    if (list?.length) setVisitEmployees(id, companyId, list);
     return getVisit(id);
   });
 }
 
-export function updateVisit(id, { company, start_date, date, end_date, headline, message, hosts, host, employees, all_employees }) {
+export function updateVisit(id, { company, start_date, date, end_date, headline, message, hosts, host, employees, all_employees, show_avatars }) {
   return tx(() => {
     const current = db.prepare('SELECT * FROM visits WHERE id = ?').get(Number(id));
     if (!current) throw new HttpError(404, 'errors.visitNotFound', { id });
@@ -407,15 +485,15 @@ export function updateVisit(id, { company, start_date, date, end_date, headline,
 
     const hostList = normalizeHosts(hosts, host);
     const pick = (value, column, field, max) => (value === undefined ? current[column] : cleanText(value, { field, max }));
-    db.prepare(`UPDATE visits SET company_id = ?, start_date = ?, end_date = ?, headline = ?, message = ?, all_employees = ?,
+    const avatars = show_avatars === undefined ? current.show_avatars : truthy(show_avatars) ? 1 : 0;
+    db.prepare(`UPDATE visits SET company_id = ?, start_date = ?, end_date = ?, headline = ?, message = ?, all_employees = ?, show_avatars = ?,
                 updated_at = datetime('now') WHERE id = ?`)
       .run(companyId, start, end,
         pick(headline, 'headline', msg('fields.headline'), 200),
         pick(message, 'message', msg('fields.message'), 1000),
-        all ? 1 : 0, current.id);
+        all ? 1 : 0, avatars, current.id);
     if (hostList) setVisitHosts(current.id, hostList);
-    if (all) db.prepare('DELETE FROM visit_employees WHERE visit_id = ?').run(current.id);
-    else if (list) setVisitEmployees(current.id, companyId, list);
+    if (list) setVisitEmployees(current.id, companyId, list);
     else if (companyId !== current.company_id) db.prepare('DELETE FROM visit_employees WHERE visit_id = ?').run(current.id);
     return getVisit(current.id);
   });
@@ -449,9 +527,7 @@ export const SETTINGS = {
   welcome_prefix: { ...text(''), label: 'Greeting above the company name (empty = default text of the language)' },
   idle_title: { ...text(''), label: 'Headline when no visit is scheduled today (empty = default text of the language)' },
   idle_text: { ...text('', 500), label: 'Text when no visit is scheduled today' },
-  rotation_seconds: { ...int(12, 3, 300), label: 'Display time per company (seconds)' },
   home_timeout_seconds: { ...int(20, 5, 600), label: 'Return to "Home" after (seconds)' },
-  max_employees_per_slide: { ...int(8, 1, 30), label: 'Max. employees per page' },
   show_employee_titles: { ...bool(true), label: 'Show employee positions' },
   weather_location_name: { ...text(config.defaults.weather_location_name, 120), label: 'Weather: place name' },
   weather_latitude: { ...coord(config.defaults.weather_latitude, 90), label: 'Weather: latitude' },
@@ -521,9 +597,88 @@ export function resolveLayoutId(ref) {
   return row.id;
 }
 
+/**
+ * Text elements whose font, size and color can be set per layout. `size` is a percentage of the default size;
+ * for "weather", "wifi" and "dock" it scales the whole card/bar. "base" sets the font and size of everything.
+ */
+export const TEXT_ELEMENTS = {
+  base: 'All texts (default font and overall size)',
+  clock_time: 'Clock: time',
+  clock_date: 'Clock: date',
+  weather_chip: 'Weather next to the logo',
+  headline: 'Visit: headline above the company name',
+  company_name: 'Visit: company name',
+  message: 'Visit: additional text',
+  person_name: 'Visit: employee name',
+  person_title: 'Visit: employee position',
+  hosts: 'Visit: in-house contacts',
+  idle_title: 'No visit: headline',
+  idle_site: 'No visit: own company name',
+  idle_text: 'No visit: text',
+  weather: 'Weather page',
+  wifi: 'Wi-Fi page',
+  dock: 'Navigation at the bottom',
+};
+
+/** Fonts shipped with the app (public/fonts); any other font name works if it is installed on the display device. */
+export const FONTS = [
+  'Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Raleway', 'Nunito', 'Work Sans', 'Source Sans 3', 'Oswald',
+  'Playfair Display', 'Lora', 'Roboto Slab',
+];
+
+function cleanTypography(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return {};
+  let input = value;
+  if (typeof input === 'string') {
+    try {
+      input = JSON.parse(input);
+    } catch {
+      throw new HttpError(400, 'errors.typography', { reason: 'JSON' });
+    }
+  }
+  if (typeof input !== 'object' || Array.isArray(input)) throw new HttpError(400, 'errors.typography', { reason: 'object' });
+  const unknown = Object.keys(input).filter((k) => !(k in TEXT_ELEMENTS));
+  if (unknown.length) throw new HttpError(400, 'errors.typographyElements', { keys: unknown.join(', '), allowed: Object.keys(TEXT_ELEMENTS).join(', ') });
+
+  const result = {};
+  for (const [key, entry] of Object.entries(input)) {
+    if (entry == null) continue;
+    const field = msg(`textElements.${key}`);
+    const out = {};
+    const font = cleanText(entry.font, { field, max: 80 });
+    if (font) {
+      // Used inside a CSS string on the display.
+      if (!/^[\p{L}\p{N} ._-]+$/u.test(font)) throw new HttpError(400, 'errors.fontName', { field });
+      out.font = font;
+    }
+    if (entry.size != null && entry.size !== '') out.size = cleanInt(entry.size, { field, min: 25, max: 400 });
+    if (entry.color != null && entry.color !== '') out.color = cleanColor(entry.color, field);
+    if (Object.keys(out).length) result[key] = out;
+  }
+  return result;
+}
+
 function presentLayout(row, activeId = getSettings().active_layout_id) {
-  const { background_image_id, logo_image_id, ...rest } = row;
-  return { ...rest, active: row.id === activeId, background_url: imageUrl(background_image_id), logo_url: imageUrl(logo_image_id) };
+  const { background_image_id, logo_image_id, typography, ...rest } = row;
+  return {
+    ...rest,
+    typography: JSON.parse(typography || '{}'),
+    active: row.id === activeId,
+    background_url: imageUrl(background_image_id),
+    logo_url: imageUrl(logo_image_id),
+  };
+}
+
+/** Layout values validated the same way on create and update; undefined = not given. */
+function layoutFields({ logo_size, tile_gap, footer_gap, typography }) {
+  const typo = cleanTypography(typography);
+  return {
+    logo_size: cleanInt(logo_size, { field: msg('fields.logoSize'), min: 20, max: 400 }),
+    tile_gap: cleanInt(tile_gap, { field: msg('fields.tileGap'), min: 0, max: 300 }),
+    footer_gap: cleanInt(footer_gap, { field: msg('fields.footerGap'), min: 0, max: 300 }),
+    typography: typo === undefined ? undefined : JSON.stringify(typo),
+  };
 }
 
 export function listLayouts() {
@@ -554,16 +709,19 @@ function cleanTemplate(value) {
   return value;
 }
 
-export function createLayout({ name, template, background, logo, accent_color, text_color, blur, dim, activate }) {
+export function createLayout({ name, template, background, logo, accent_color, text_color, blur, dim, activate, ...rest }) {
   return tx(() => {
     const cleanName = cleanText(name, { field: msg('fields.name'), required: true, max: 80 });
+    const f = layoutFields(rest);
     const id = conflictOnUnique(
-      () => db.prepare('INSERT INTO layouts (name, template, background_image_id, logo_image_id, accent_color, text_color, blur, dim) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      () => db.prepare(`INSERT INTO layouts (name, template, background_image_id, logo_image_id, accent_color, text_color, blur, dim,
+                        logo_size, tile_gap, footer_gap, typography) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(cleanName, cleanTemplate(template) ?? 'glass', storeImage(background), storeImage(logo),
           cleanColor(accent_color) ?? '#4f8cff',
           cleanColor(text_color, msg('fields.textColor')) ?? '#ffffff',
           cleanInt(blur, { field: msg('fields.blur'), min: 0, max: 60 }) ?? 24,
-          cleanInt(dim, { field: msg('fields.dim'), min: 0, max: 90 }) ?? 25)
+          cleanInt(dim, { field: msg('fields.dim'), min: 0, max: 90 }) ?? 25,
+          f.logo_size ?? 100, f.tile_gap ?? 32, f.footer_gap ?? 32, f.typography ?? '{}')
         .lastInsertRowid,
       'errors.layoutExists', { name: cleanName },
     );
@@ -572,14 +730,15 @@ export function createLayout({ name, template, background, logo, accent_color, t
   });
 }
 
-export function updateLayout(ref, { name, template, background, remove_background, logo, remove_logo, accent_color, text_color, blur, dim, activate }) {
+export function updateLayout(ref, { name, template, background, remove_background, logo, remove_logo, accent_color, text_color, blur, dim, activate, ...rest }) {
   return tx(() => {
     const id = resolveLayoutId(ref);
     const cur = db.prepare('SELECT * FROM layouts WHERE id = ?').get(id);
     const newName = cleanText(name, { field: msg('fields.name'), required: true, max: 80 }) ?? cur.name;
+    const f = layoutFields(rest);
     conflictOnUnique(
       () => db.prepare(`UPDATE layouts SET name = ?, template = ?, background_image_id = ?, logo_image_id = ?, accent_color = ?, text_color = ?, blur = ?, dim = ?,
-                        updated_at = datetime('now') WHERE id = ?`)
+                        logo_size = ?, tile_gap = ?, footer_gap = ?, typography = ?, updated_at = datetime('now') WHERE id = ?`)
         .run(newName, cleanTemplate(template) ?? cur.template,
           replaceImage(cur.background_image_id, background, truthy(remove_background)),
           replaceImage(cur.logo_image_id, logo, truthy(remove_logo)),
@@ -587,6 +746,7 @@ export function updateLayout(ref, { name, template, background, remove_backgroun
           cleanColor(text_color, msg('fields.textColor')) ?? cur.text_color,
           cleanInt(blur, { field: msg('fields.blur'), min: 0, max: 60 }) ?? cur.blur,
           cleanInt(dim, { field: msg('fields.dim'), min: 0, max: 90 }) ?? cur.dim,
+          f.logo_size ?? cur.logo_size, f.tile_gap ?? cur.tile_gap, f.footer_gap ?? cur.footer_gap, f.typography ?? cur.typography,
           id),
       'errors.layoutExists', { name: newName },
     );
@@ -616,35 +776,23 @@ export function deleteLayout(ref) {
 // Display (what the welcome screen shows)
 // ---------------------------------------------------------------------------
 
-function chunk(list, size) {
-  if (!list.length) return [[]];
-  const out = [];
-  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
-  return out;
-}
-
-/** Everything the welcome screen needs for one day. */
+/** Everything the welcome screen needs for one day. All visits of the day are shown side by side as tiles. */
 export function getDisplay({ date } = {}) {
   const day = parseDate(date, { fallback: today() });
   const settings = getSettings();
-  const visits = listVisits({ date: day });
-  const perSlide = settings.max_employees_per_slide;
 
-  const slides = visits.flatMap((v) => {
-    const pages = chunk(v.employees, perSlide);
-    return pages.map((employees, i) => ({
-      key: `${v.id}-${i}`,
-      visit_id: v.id,
-      company: { id: v.company_id, name: v.company_name, logo_url: v.company_logo_url },
-      // null = the display shows the default greeting of the selected language.
-      headline: v.headline || settings.welcome_prefix || null,
-      message: v.message,
-      hosts: v.hosts,
-      page: i + 1,
-      pages: pages.length,
-      employees: employees.map(({ id, name, title, photo_url }) => ({ id, name, title: settings.show_employee_titles ? title : null, photo_url })),
-    }));
-  });
+  const visits = listVisits({ date: day }).map((v) => ({
+    id: v.id,
+    company: { id: v.company_id, name: v.company_name, logo_url: v.company_logo_url },
+    // null = the display shows the default greeting of the selected language.
+    headline: v.headline || settings.welcome_prefix || null,
+    message: v.message,
+    hosts: v.hosts,
+    show_avatars: v.show_avatars,
+    employees: v.employees.map(({ id, name, title, image_url, avatar_color }) => ({
+      id, name, title: settings.show_employee_titles ? title : null, image_url, avatar_color,
+    })),
+  }));
 
   const wifi = settings.wifi_ssid
     ? { ssid: settings.wifi_ssid, password: settings.wifi_encryption === 'nopass' ? '' : settings.wifi_password, encryption: settings.wifi_encryption, note: settings.wifi_note, qr_url: '/api/wifi/qr.svg' }
@@ -663,14 +811,13 @@ export function getDisplay({ date } = {}) {
       idle_text: settings.idle_text,
     },
     timing: {
-      rotation_seconds: settings.rotation_seconds,
       home_timeout_seconds: settings.home_timeout_seconds,
     },
     weather: settings.weather_latitude != null && settings.weather_longitude != null
       ? { location: settings.weather_location_name, url: '/api/weather' }
       : null,
     wifi,
-    slides,
+    visits,
   };
 }
 
@@ -695,6 +842,7 @@ export function summarizeVisit(v) {
     headline: v.headline,
     hosts: v.hosts,
     all_employees: v.all_employees,
+    show_avatars: v.show_avatars,
     employees: v.employees.map((e) => e.name),
   };
 }

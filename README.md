@@ -1,20 +1,28 @@
 # Company Welcome Screen
 
 A welcome screen for your reception area. When a company visits, the screen automatically shows their logo, name and
-the registered employees on the day of the visit. If several companies visit on the same day, the screen rotates
-between them with an animation.
+the registered employees on the day of the visit. If several companies visit on the same day, they are shown side by
+side as tiles of equal height.
 
 - **Welcome screen** (`/`): full-screen page for a TV or kiosk stele. Background image, your logo top left with the
   weather next to it, the time top right and a frosted glass card in the middle. A dock at the bottom offers
   **Home**, **Weather** and **Wi-Fi**:
-  - *Home*: welcomes today's visitors (companies rotate with a progress bar; many employees are split across pages).
+  - *Home*: welcomes today's visitors – one tile per visit, side by side (two rows from five visits, at most two
+    columns on portrait screens). If the content does not fit between header and dock, it is zoomed out, so the dock
+    never covers it.
   - *Weather*: current weather, the next hours and 5 days (Open-Meteo, no API key needed).
   - *Wi-Fi*: guest Wi-Fi with network name, password and a QR code to scan.
   - After 20 seconds without interaction the screen returns to *Home* (configurable).
-- **Admin area** (`/admin`): manage companies (name, logo) and their employees (name, position, photo), schedule visits
-  ("company XY is coming tomorrow", also multi-day and with selected employees only, with one or more in-house
-  contacts), and maintain layouts and settings.
-- **Layouts**: appearance (background image, your own logo, accent color, text color, blur strength, dimming). Several
+- **Admin area** (`/admin`): manage companies (name, logo) and their employees (name, position, picture), schedule visits
+  ("company XY is coming tomorrow", also multi-day, with all, selected or no employees, in an order set by drag and
+  drop, with one or more in-house contacts), and maintain layouts and settings.
+- **Employee pictures**: an own photo, a picture from the **picture pool** (managed under *Companies*; starts with two
+  default pictures from `assets/avatars`) or the initials with an automatic or chosen background color. Pictures are
+  switched on per visit (default: off – the screen then shows name tags).
+- **Layouts**: appearance (background image, your own logo and its size, accent color, text color, blur strength,
+  dimming, gap between the visit tiles and between content and dock, and font, size and color of every text element –
+  clock, headline, company name, employees, …). Twelve open-source fonts are shipped in `public/fonts` (no requests to
+  external font services); any font installed on the display device can be used as well. Several
   layouts are possible (e.g. seasonal); the active one is shown. With a dark text color the glass automatically turns
   bright, which suits light background images; the admin area can suggest a readable text color for the chosen image.
   `glass` is the first template; more can be added later.
@@ -102,7 +110,7 @@ Example for a Raspberry Pi / mini PC with Chromium:
 chromium --kiosk --noerrdialogs --disable-infobars --incognito http://<server>:3000/
 ```
 
-- Operated by touch or mouse; keyboard: `1`/`2`/`3` for Home/Weather/Wi-Fi, `→` next company.
+- Operated by touch or mouse; keyboard: `1`/`2`/`3` for Home/Weather/Wi-Fi.
 - The mouse cursor is hidden after 3 seconds.
 - Data is refreshed every 30 seconds – new visits appear without reloading.
 - `/?date=2026-10-01` shows a preview for another date.
@@ -137,6 +145,7 @@ Available tools:
 | `get_display` | What the screen shows on a given day |
 | `list_companies`, `get_company`, `create_company`, `update_company`, `delete_company` | Companies |
 | `list_employees`, `create_employee`, `update_employee`, `delete_employee` | Employees of the companies |
+| `list_avatars`, `add_avatar`, `delete_avatar` | Picture pool for employees |
 | `list_visits`, `schedule_visit`, `update_visit`, `cancel_visit` | Visits |
 | `list_layouts`, `update_layout`, `activate_layout` | Layouts |
 | `get_settings`, `update_settings` | Texts, timings, weather, guest Wi-Fi |
@@ -146,13 +155,15 @@ and Erika."*
 
 Companies, employees and layouts can be referenced by ID **or** exact name. Dates are accepted as `YYYY-MM-DD`,
 `DD.MM.YYYY`, `today`/`tomorrow` or the German `heute`/`morgen`/`übermorgen`. Images (logo/photo/background) are
-passed as SVG markup, data URL or Base64.
+passed as an http(s) URL (the server downloads the image), SVG markup, data URL or Base64.
 
 ## REST API
 
 Reading works without a token (except settings); all write calls require `Authorization: Bearer <ADMIN_TOKEN>`
-(alternatively the `X-API-Key` header). Errors are returned as `{ "error": "<message in the configured language>", "code": "errors.<key>" }`. Write endpoints with images accept JSON (image as Base64/data URL/SVG string)
-or `multipart/form-data` (image as file field).
+(alternatively the `X-API-Key` header). Errors are returned as `{ "error": "<message in the configured language>", "code": "errors.<key>" }`. Write endpoints with images accept JSON (image as http(s) URL, Base64, data URL or SVG string)
+or `multipart/form-data` (image as file field, or its URL in `<field>_url`, e.g. `logo_url`). Images given by URL are
+downloaded once by the server and stored like an upload (same 8 MB limit); the admin area offers a URL field next to
+every upload.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -165,13 +176,17 @@ or `multipart/form-data` (image as file field).
 | POST | `/api/companies` | `name`, `logo?`, `note?` |
 | PATCH/DELETE | `/api/companies/:ref` | as above, plus `remove_logo?` – deleting also removes employees and visits |
 | GET | `/api/employees?company=` | Employees |
-| POST | `/api/employees` | `company`, `name`, `title?`, `photo?`, `sort_order?` |
-| PATCH/DELETE | `/api/employees/:ref` | as above, plus `remove_photo?` |
+| POST | `/api/employees` | `company`, `name`, `title?`, `photo?`, `avatar_id?` (pool picture, ID or name), `avatar_color?` (#RRGGBB for the initials) |
+| PATCH/DELETE | `/api/employees/:ref` | as above, plus `remove_photo?`; empty `avatar_id`/`avatar_color` remove them |
+| GET | `/api/avatars` | Picture pool |
+| POST | `/api/avatars` | `name?`, `image` |
+| DELETE | `/api/avatars/:ref` | Remove a picture from the pool (employees using it show their initials) |
 | GET | `/api/visits?from=&to=&date=&company=` | Visits (default: from today) |
-| POST | `/api/visits` | `company`, `date` or `start_date`, `end_date?`, `employees?` (IDs/names; empty = all), `headline?`, `message?`, `hosts?` (list of in-house contacts, max. 10) |
+| POST | `/api/visits` | `company`, `date` or `start_date`, `end_date?`, `employees?` (IDs/names in screen order; empty = all), `all_employees?` (`false` without employees = company only), `show_avatars?` (default `false`), `headline?`, `message?`, `hosts?` (list of in-house contacts, max. 10) |
 | PATCH/DELETE | `/api/visits/:id` | Update/delete a visit – `hosts` replaces all contacts, `[]` removes them |
 | GET | `/api/layouts` | Layouts incl. the active one |
-| POST | `/api/layouts` | `name`, `background?`, `logo?`, `accent_color?`, `text_color?` (#RRGGBB), `blur?` (0–60), `dim?` (0–90), `activate?` |
+| GET | `/api/layouts/typography` | Text elements and shipped fonts for `typography` |
+| POST | `/api/layouts` | `name`, `background?`, `logo?`, `accent_color?`, `text_color?` (#RRGGBB), `blur?` (0–60), `dim?` (0–90), `logo_size?` (% , 20–400), `tile_gap?`/`footer_gap?` (px at Full HD, 0–300), `typography?` (`{"company_name": {"font": "Lora", "size": 120, "color": "#ffffff"}, …}`), `activate?` |
 | PATCH/DELETE | `/api/layouts/:ref` | as above, plus `remove_background?`, `remove_logo?` |
 | POST | `/api/layouts/:ref/activate` | Activate a layout |
 | GET/PATCH | `/api/settings` | Read/change settings (token required) |
@@ -223,6 +238,8 @@ public/
   admin.html, admin.*     Admin area
   shared.js               Shared helpers
   i18n.js                 Translations in the browser
+  fonts/                  Shipped fonts (SIL Open Font License / Apache 2.0, from Google Fonts)
+assets/avatars/    Default pictures of the picture pool (added by migration 006)
 locales/           Language files (en.json, de.json)
 migrations/        Schema migrations
 scripts/seed.js    Demo data

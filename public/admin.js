@@ -1,5 +1,5 @@
 // Welcome Screen admin – single page app (no build step).
-import { h, initials, hue, contrast, DARK_TEXT } from './shared.js';
+import { h, append, initials, hue, contrast, DARK_TEXT } from './shared.js';
 import { t, tNodes, has, setLanguage, language, locale } from './i18n.js';
 
 const main = document.getElementById('app');
@@ -72,11 +72,16 @@ function dateRange(v) {
   return v.start_date === v.end_date ? fmtDate(v.start_date) : `${fmtDate(v.start_date)} – ${fmtDate(v.end_date)}`;
 }
 
+const initialsColor = (person) => person.avatar_color || `hsl(${hue(person.name)} 45% 32%)`;
+
 function avatar(person, size = 42) {
   const style = { width: `${size}px`, height: `${size}px` };
-  if (person.photo_url) return h('img', { class: 'avatar', src: person.photo_url, alt: '', style });
-  return h('span', { class: 'avatar', style: { ...style, background: `hsl(${hue(person.name)} 45% 32%)`, fontSize: `${size / 2.8}px` } }, initials(person.name));
+  const src = person.image_url ?? person.photo_url;
+  if (src) return h('img', { class: 'avatar', src, alt: '', style });
+  return h('span', { class: 'avatar', style: { ...style, background: initialsColor(person), fontSize: `${size / 2.8}px` } }, initials(person.name));
 }
+
+const IMAGE_TYPES = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml';
 
 function logoBox(company, cls = 'logo-box') {
   return company.logo_url
@@ -86,19 +91,33 @@ function logoBox(company, cls = 'logo-box') {
 
 const field = (label, input, hint) => h('label', { class: 'field' }, h('span', null, label), input, hint ? h('small', null, hint) : null);
 
+/** CSS url() value; quotes, backslashes and line breaks are percent-encoded so the value cannot break out. */
+const cssUrl = (src) => `url("${String(src).replace(/["\\\n]/g, encodeURIComponent)}")`;
+
+/** Web address of an image as an alternative to uploading a file; the server downloads it ("<name>_url"). */
+const imageUrlInput = (name, oninput) => h('input', { type: 'url', name, placeholder: t('common.imageUrl'), oninput });
+
 function imageInput(name, currentUrl, { cover = false, dark = false } = {}) {
-  const preview = h('div', { class: `preview ${cover ? 'cover' : ''} ${dark ? 'dark' : ''}`, style: { backgroundImage: currentUrl ? `url("${currentUrl}")` : 'none' } });
+  const preview = h('div', { class: `preview ${cover ? 'cover' : ''} ${dark ? 'dark' : ''}`, style: { backgroundImage: currentUrl ? cssUrl(currentUrl) : 'none' } });
+  const showCurrent = () => { preview.style.backgroundImage = currentUrl ? cssUrl(currentUrl) : 'none'; };
   const input = h('input', {
-    type: 'file', name, accept: 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml',
+    type: 'file', name, accept: IMAGE_TYPES,
     onchange: () => {
       const file = input.files[0];
-      if (file) preview.style.backgroundImage = `url("${URL.createObjectURL(file)}")`;
+      if (!file) return;
+      url.value = '';
+      preview.style.backgroundImage = cssUrl(URL.createObjectURL(file));
     },
+  });
+  const url = imageUrlInput(`${name}_url`, () => {
+    input.value = '';
+    if (url.value.trim()) preview.style.backgroundImage = cssUrl(url.value.trim());
+    else showCurrent();
   });
   const remove = currentUrl
     ? h('label', { class: 'check small' }, h('input', { type: 'checkbox', name: `remove_${name}`, value: '1', onchange: (e) => { preview.style.opacity = e.target.checked ? 0.25 : 1; } }), t('common.remove'))
     : null;
-  return h('div', { class: 'image-field' }, preview, h('div', { class: 'stack', style: { flex: 1 } }, input, remove));
+  return h('div', { class: 'image-field' }, preview, h('div', { class: 'stack', style: { flex: 1 } }, input, url, remove));
 }
 
 /** FormData without empty file inputs (so existing images are kept). */
@@ -189,8 +208,9 @@ function visitRow(v) {
       h('div', { class: 'chips' },
         v.employees.length
           ? v.employees.map((e) => h('span', { class: 'pill' }, e.name))
-          : h('span', { class: 'pill' }, t('admin.visits.noEmployees')),
+          : h('span', { class: 'pill' }, v.all_employees ? t('admin.visits.noEmployees') : t('admin.visits.companyOnly')),
         v.all_employees && v.employees.length ? h('span', { class: 'pill accent' }, t('admin.visits.all')) : null,
+        v.show_avatars && v.employees.length ? h('span', { class: 'pill accent' }, t('admin.visits.withPictures')) : null,
         v.hosts.length ? h('span', { class: 'pill ok' }, t('admin.visits.hosts', { count: v.hosts.length, names: v.hosts.join(', ') })) : null)),
     h('div', { class: 'actions' },
       h('a', { class: 'btn ghost small', href: `/?date=${v.start_date < today() && v.end_date >= today() ? today() : v.start_date}`, target: '_blank' }, t('common.preview')),
@@ -230,6 +250,124 @@ function hostList(initial) {
   };
 }
 
+/**
+ * Employees of a visit: all / a selection / none, in an order that can be changed by drag and drop
+ * (default: alphabetical). The order is kept for "all" as well.
+ */
+function employeePicker(companySel, editing) {
+  let mode = !editing ? 'all' : editing.all_employees ? 'all' : editing.employees.length ? 'selected' : 'none';
+  let employees = [];
+  const selected = new Set(editing && !editing.all_employees ? editing.employees.map((e) => e.id) : []);
+  const list = h('ol', { class: 'emp-order' });
+  const info = h('div', { class: 'faint small' });
+  const sortButton = h('button', {
+    class: 'btn ghost small', type: 'button',
+    onclick: () => { employees.sort(byName); draw(); },
+  }, t('admin.visits.sortAlphabetically'));
+
+  const byName = (a, b) => a.name.localeCompare(b.name, locale);
+  const modes = h('div', { class: 'actions' }, ['all', 'selected', 'none'].map((m) => h('label', { class: 'check' },
+    h('input', { type: 'radio', name: 'employee_mode', value: m, checked: m === mode, onchange: () => { mode = m; draw(); } }),
+    t(`admin.visits.mode.${m}`))));
+
+  function move(index, delta) {
+    const target = index + delta;
+    if (target < 0 || target >= employees.length) return;
+    [employees[index], employees[target]] = [employees[target], employees[index]];
+    draw();
+    list.children[target]?.querySelector(delta < 0 ? '.up' : '.down')?.focus();
+  }
+
+  // Drag and drop with pointer events (works with mouse and touch, unlike HTML5 drag and drop).
+  let dragging = null;
+  list.addEventListener('pointerdown', (e) => {
+    const li = e.target.closest('li');
+    if (!li || e.button !== 0 || e.target.closest('input, button')) return;
+    e.preventDefault();
+    dragging = li;
+    li.classList.add('dragging');
+    list.setPointerCapture(e.pointerId);
+  });
+  list.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const next = [...list.children].find((x) => {
+      if (x === dragging) return false;
+      const r = x.getBoundingClientRect();
+      return e.clientY < r.top + r.height / 2;
+    }) ?? null;
+    if (dragging.nextElementSibling !== next) list.insertBefore(dragging, next);
+  });
+  const drop = () => {
+    if (!dragging) return;
+    dragging = null;
+    const byId = new Map(employees.map((x) => [x.id, x]));
+    employees = [...list.children].map((x) => byId.get(Number(x.dataset.id)));
+    draw();
+  };
+  list.addEventListener('pointerup', drop);
+  list.addEventListener('pointercancel', drop);
+
+  function draw() {
+    list.replaceChildren();
+    sortButton.hidden = mode === 'none' || employees.length < 2;
+    list.hidden = mode === 'none' || !employees.length;
+    if (!companySel.value) {
+      info.replaceChildren(t('admin.visits.selectCompanyFirst'));
+      return;
+    }
+    if (mode === 'none') {
+      info.replaceChildren(t('admin.visits.companyOnlyHint'));
+      return;
+    }
+    if (!employees.length) {
+      info.replaceChildren(t('admin.visits.noEmployeesForCompany'), h('a', { href: `#/company/${companySel.value}` }, t('admin.visits.addEmployees')));
+      return;
+    }
+    info.replaceChildren(t('admin.visits.orderHint'));
+    employees.forEach((emp, i) => {
+      const li = h('li', { class: 'emp-item' },
+        h('span', { class: 'grip', 'aria-hidden': 'true' }, '⠿'),
+        h('input', {
+          type: 'checkbox', checked: mode === 'all' || selected.has(emp.id), disabled: mode === 'all', 'aria-label': emp.name,
+          onchange: (ev) => { ev.target.checked ? selected.add(emp.id) : selected.delete(emp.id); },
+        }),
+        avatar(emp, 28),
+        h('span', { class: 'grow' }, emp.name, emp.title ? h('span', { class: 'faint small' }, ` · ${emp.title}`) : null),
+        h('button', { class: 'btn ghost small up', type: 'button', title: t('admin.visits.moveUp'), 'aria-label': t('admin.visits.moveUp'), disabled: i === 0, onclick: () => move(i, -1) }, '↑'),
+        h('button', { class: 'btn ghost small down', type: 'button', title: t('admin.visits.moveDown'), 'aria-label': t('admin.visits.moveDown'), disabled: i === employees.length - 1, onclick: () => move(i, 1) }, '↓'));
+      li.dataset.id = emp.id;
+      list.append(li);
+    });
+  }
+
+  async function load() {
+    employees = [];
+    if (companySel.value) {
+      const all = await api(`/employees?company=${companySel.value}`);
+      // Saved order first (only for the company of the edited visit), the rest alphabetically.
+      const saved = editing?.company_id === Number(companySel.value) ? editing.employees.map((e) => e.id) : [];
+      const pos = new Map(saved.map((id, i) => [id, i]));
+      employees = all.sort((a, b) => (pos.get(a.id) ?? Infinity) - (pos.get(b.id) ?? Infinity) || byName(a, b));
+    }
+    draw();
+  }
+
+  companySel.addEventListener('change', () => { selected.clear(); load(); });
+  load();
+
+  return {
+    el: h('div', { class: 'stack' }, modes, info, list, h('div', null, sortButton)),
+    /** { all_employees, employees } for the API, or null if the selection is empty. */
+    values() {
+      const ids = employees.map((e) => e.id);
+      if (mode === 'all') return { all_employees: true, employees: ids };
+      if (mode === 'none') return { all_employees: false, employees: [] };
+      const chosen = ids.filter((id) => selected.has(id));
+      return chosen.length ? { all_employees: false, employees: chosen } : null;
+    },
+  };
+}
+
 function visitForm(companies, editing) {
   const companySel = h('select', { name: 'company', required: true },
     h('option', { value: '' }, t('admin.visits.selectCompany')),
@@ -239,35 +377,8 @@ function visitForm(companies, editing) {
   const headline = h('input', { name: 'headline', placeholder: t('admin.visits.headlinePlaceholder', { welcome: t('display.welcome') }), value: editing?.headline ?? '' });
   const message = h('textarea', { name: 'message', placeholder: t('admin.visits.messagePlaceholder') }, editing?.message ?? '');
   const hosts = hostList(editing?.hosts ?? []);
-  const allBox = h('input', { type: 'checkbox', checked: editing ? editing.all_employees : true });
-  const pick = h('div', { class: 'emp-pick' });
-  const selected = new Set(editing && !editing.all_employees ? editing.employees.map((e) => e.id) : []);
-
-  async function loadEmployees() {
-    pick.replaceChildren();
-    if (!companySel.value) {
-      pick.append(h('span', { class: 'faint small' }, t('admin.visits.selectCompanyFirst')));
-      return;
-    }
-    const employees = await api(`/employees?company=${companySel.value}`);
-    if (!employees.length) {
-      pick.append(h('span', { class: 'faint small' }, t('admin.visits.noEmployeesForCompany'), h('a', { href: `#/company/${companySel.value}` }, t('admin.visits.addEmployees'))));
-      return;
-    }
-    for (const e of employees) {
-      pick.append(h('label', { class: 'check' },
-        h('input', {
-          type: 'checkbox', value: e.id, checked: allBox.checked || selected.has(e.id), disabled: allBox.checked,
-          onchange: (ev) => { ev.target.checked ? selected.add(e.id) : selected.delete(e.id); },
-        }),
-        avatar(e, 28),
-        h('span', { style: { lineHeight: 1.2 } }, e.name, e.title ? h('div', { class: 'faint small' }, e.title) : null)));
-    }
-  }
-
-  companySel.addEventListener('change', () => { selected.clear(); loadEmployees(); });
-  allBox.addEventListener('change', loadEmployees);
-  loadEmployees();
+  const picker = employeePicker(companySel, editing);
+  const showAvatars = h('input', { type: 'checkbox', checked: editing?.show_avatars ?? false });
 
   const quick = (label, days) => h('button', { class: 'btn ghost small', type: 'button', onclick: () => { start.value = plusDays(days); end.value = ''; } }, label);
 
@@ -275,6 +386,8 @@ function visitForm(companies, editing) {
     class: 'card pad stack',
     onsubmit: async (e) => {
       e.preventDefault();
+      const people = picker.values();
+      if (!people) { toast(t('admin.visits.selectEmployee'), 'error'); return; }
       const body = {
         company: Number(companySel.value),
         start_date: start.value,
@@ -282,10 +395,9 @@ function visitForm(companies, editing) {
         headline: headline.value,
         message: message.value,
         hosts: hosts.values(),
-        all_employees: allBox.checked,
-        employees: allBox.checked ? [] : [...selected],
+        show_avatars: showAvatars.checked,
+        ...people,
       };
-      if (!allBox.checked && !selected.size) { toast(t('admin.visits.selectEmployee'), 'error'); return; }
       const saved = editing
         ? await run(() => api(`/visits/${editing.id}`, { method: 'PATCH', body }), t('admin.visits.saved'))
         : await run(() => api('/visits', { method: 'POST', body }), t('admin.visits.scheduled'));
@@ -301,8 +413,9 @@ function visitForm(companies, editing) {
       quick(t('admin.visits.quickToday'), 0), quick(t('admin.visits.quickTomorrow'), 1), quick(t('admin.visits.quickDayAfter'), 2))),
   h('div', { class: 'field' },
     h('span', null, t('admin.visits.shownEmployees')),
-    h('label', { class: 'check' }, allBox, t('admin.visits.allEmployees')),
-    pick),
+    picker.el,
+    h('label', { class: 'check' }, showAvatars, t('admin.visits.showAvatars')),
+    h('small', null, t('admin.visits.showAvatarsHint'))),
   h('div', { class: 'row' }, field(t('admin.visits.headline'), headline), h('div', { class: 'field' }, h('span', null, t('admin.visits.hostsLabel')), hosts.el)),
   field(t('admin.visits.message'), message),
   h('div', { class: 'actions' },
@@ -314,8 +427,112 @@ function visitForm(companies, editing) {
 // Companies
 // ---------------------------------------------------------------------------
 
+/** Pool of default pictures that employees can pick instead of an own photo. */
+function avatarPool(pool) {
+  const form = h('form', {
+    class: 'row',
+    onsubmit: async (e) => {
+      e.preventDefault();
+      const fd = formData(form);
+      if (!fd.get('image') && !fd.get('image_url')) { toast(t('admin.avatars.imageRequired'), 'error'); return; }
+      if (await run(() => api('/avatars', { method: 'POST', form: fd }), t('admin.avatars.added'))) render();
+    },
+  },
+  field(t('admin.avatars.name'), h('input', { name: 'name', maxlength: 80, placeholder: t('admin.avatars.namePlaceholder') })),
+  field(t('admin.avatars.image'), h('input', { type: 'file', name: 'image', accept: IMAGE_TYPES })),
+  field(t('admin.avatars.imageUrl'), imageUrlInput('image_url')),
+  h('button', { class: 'btn ghost', type: 'submit' }, t('common.add')));
+
+  return h('section', { class: 'section card pad stack' },
+    h('h2', null, t('admin.avatars.title')),
+    h('p', { class: 'muted small', style: { margin: 0 } }, t('admin.avatars.intro')),
+    pool.length
+      ? h('div', { class: 'pool' }, pool.map((a) => h('div', { class: 'pool-item' },
+        h('img', { src: a.image_url, alt: '' }),
+        h('strong', null, a.name),
+        h('span', { class: 'faint small' }, t('admin.avatars.used', { count: a.employee_count })),
+        h('button', {
+          class: 'btn danger small', type: 'button',
+          onclick: async () => {
+            if (!confirmDelete(t('admin.avatars.deleteWhat', { name: a.name }))) return;
+            if (await run(() => api(`/avatars/${a.id}`, { method: 'DELETE' }), t('admin.avatars.deleted'))) render();
+          },
+        }, t('common.delete')))))
+      : h('div', { class: 'empty' }, t('admin.avatars.none')),
+    form);
+}
+
+/**
+ * Picture of an employee: initials (with an optional own background color), a picture from the pool or an own photo.
+ * `nameOf` returns the current name for the initials preview. apply(fd) writes the choice into the FormData.
+ */
+function avatarPicker(pool, emp, nameOf) {
+  let choice = emp?.photo_url ? 'photo' : emp?.avatar_id ? `pool:${emp.avatar_id}` : 'initials';
+  let photoUrl = emp?.photo_url ?? null;
+  const options = h('div', { class: 'av-options', role: 'radiogroup', 'aria-label': t('admin.companies.picture') });
+  const file = h('input', {
+    type: 'file', accept: IMAGE_TYPES, hidden: true,
+    onchange: () => {
+      if (!file.files[0]) return;
+      url.value = '';
+      photoUrl = URL.createObjectURL(file.files[0]);
+      choice = 'photo';
+      draw();
+    },
+  });
+  const url = imageUrlInput(null, () => {
+    file.value = '';
+    photoUrl = url.value.trim() || emp?.photo_url || null;
+    choice = photoUrl ? 'photo' : 'initials';
+    draw();
+  });
+  const colorOn = h('input', { type: 'checkbox', checked: Boolean(emp?.avatar_color), onchange: () => draw() });
+  const color = h('input', { type: 'color', value: emp?.avatar_color ?? '#2f6fd0', style: { width: '4.5rem' }, oninput: () => { colorOn.checked = true; draw(); } });
+
+  const option = (key, label, content) => h('button', {
+    class: `av-opt ${choice === key ? 'selected' : ''}`, type: 'button', title: label, role: 'radio', 'aria-checked': String(choice === key),
+    onclick: () => { choice = key; draw(); },
+  }, content, h('span', null, label));
+
+  function draw() {
+    const name = nameOf() || '?';
+    options.replaceChildren();
+    append(options, [
+      option('initials', t('admin.companies.initials'),
+        h('span', { class: 'avatar', style: { background: colorOn.checked ? color.value : `hsl(${hue(name)} 45% 32%)` } }, initials(name))),
+      pool.map((a) => option(`pool:${a.id}`, a.name, h('img', { class: 'avatar', src: a.image_url, alt: '' }))),
+      photoUrl
+        ? option('photo', t('admin.companies.ownPhoto'), h('img', { class: 'avatar', src: photoUrl, alt: '' }))
+        : null,
+      h('button', { class: 'av-opt upload', type: 'button', onclick: () => file.click() },
+        h('span', { class: 'avatar' }, '+'), h('span', null, photoUrl ? t('admin.companies.otherPhoto') : t('admin.companies.uploadPhoto')))]);
+  }
+  draw();
+
+  return {
+    el: h('div', { class: 'stack' },
+      options, file, url,
+      h('div', { class: 'actions small' }, h('label', { class: 'check' }, colorOn, t('admin.companies.initialsColor')), color)),
+    redraw: draw,
+    apply(fd) {
+      fd.delete('photo');
+      const hadPhoto = Boolean(emp?.photo_url);
+      if (choice === 'photo') {
+        if (file.files[0]) fd.set('photo', file.files[0]);
+        else if (url.value.trim()) fd.set('photo_url', url.value.trim());
+        fd.set('avatar_id', '');
+      } else {
+        fd.set('avatar_id', choice.startsWith('pool:') ? choice.slice(5) : '');
+        if (hadPhoto) fd.set('remove_photo', '1');
+      }
+      fd.set('avatar_color', colorOn.checked ? color.value : '');
+      return fd;
+    },
+  };
+}
+
 async function viewCompanies() {
-  const companies = await api('/companies');
+  const [companies, pool] = await Promise.all([api('/companies'), api('/avatars')]);
   const form = h('form', {
     class: 'card pad stack',
     onsubmit: async (e) => {
@@ -342,11 +559,12 @@ async function viewCompanies() {
           h('div', { class: 'small muted' },
             t('admin.companies.employeeCount', { count: c.employee_count }),
             c.next_visit ? t('admin.companies.nextVisit', { date: fmtDate(c.next_visit) }) : ''))))
-        : h('div', { class: 'empty' }, t('admin.companies.none'))));
+        : h('div', { class: 'empty' }, t('admin.companies.none'))),
+    avatarPool(pool));
 }
 
 async function viewCompany(id) {
-  const company = await api(`/companies/${id}`);
+  const [company, pool] = await Promise.all([api(`/companies/${id}`), api('/avatars')]);
 
   const form = h('form', {
     class: 'card pad stack',
@@ -371,20 +589,22 @@ async function viewCompany(id) {
       },
     }, t('admin.companies.delete'))));
 
+  const newName = h('input', { name: 'name', required: true, oninput: () => newPicture.redraw() });
+  const newPicture = avatarPicker(pool, null, () => newName.value);
   const addForm = h('form', {
     class: 'card pad stack',
     onsubmit: async (e) => {
       e.preventDefault();
-      const fd = formData(addForm);
+      const fd = newPicture.apply(formData(addForm));
       fd.set('company', company.id);
       if (await run(() => api('/employees', { method: 'POST', form: fd }), t('admin.companies.employeeCreated'))) render();
     },
   },
   h('h3', null, t('admin.companies.addEmployee')),
   h('div', { class: 'row' },
-    field(t('admin.companies.name'), h('input', { name: 'name', required: true })),
-    field(t('admin.companies.position'), h('input', { name: 'title', placeholder: t('common.optional') })),
-    field(t('admin.companies.photo'), imageInput('photo', null, { cover: true }))),
+    field(t('admin.companies.name'), newName),
+    field(t('admin.companies.position'), h('input', { name: 'title', placeholder: t('common.optional') }))),
+  h('div', { class: 'field' }, h('span', null, t('admin.companies.picture')), newPicture.el),
   h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'submit' }, t('common.add'))));
 
   return h('div', null,
@@ -394,7 +614,7 @@ async function viewCompany(id) {
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', null, t('admin.companies.employees', { count: company.employees.length }))),
       company.employees.length
-        ? h('ul', { class: 'card list' }, company.employees.map(employeeRow))
+        ? h('ul', { class: 'card list' }, company.employees.map((emp) => employeeRow(emp, pool)))
         : h('div', { class: 'empty' }, t('admin.companies.noEmployees'))),
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', null, t('admin.companies.upcoming'))),
@@ -403,7 +623,7 @@ async function viewCompany(id) {
         : h('div', { class: 'empty' }, t('admin.companies.noVisits'), h('a', { href: '#/visits' }, t('admin.companies.scheduleVisit')))));
 }
 
-function employeeRow(emp) {
+function employeeRow(emp, pool) {
   const li = h('li', null);
   const show = () => li.replaceChildren(
     avatar(emp),
@@ -418,18 +638,19 @@ function employeeRow(emp) {
         },
       }, t('common.delete'))));
   const edit = () => {
+    const name = h('input', { name: 'name', required: true, value: emp.name, oninput: () => picture.redraw() });
+    const picture = avatarPicker(pool, emp, () => name.value);
     const form = h('form', {
       class: 'grow stack',
       onsubmit: async (e) => {
         e.preventDefault();
-        if (await run(() => api(`/employees/${emp.id}`, { method: 'PATCH', form: formData(form) }), t('common.saved'))) render();
+        if (await run(() => api(`/employees/${emp.id}`, { method: 'PATCH', form: picture.apply(formData(form)) }), t('common.saved'))) render();
       },
     },
     h('div', { class: 'row' },
-      field(t('admin.companies.name'), h('input', { name: 'name', required: true, value: emp.name })),
-      field(t('admin.companies.position'), h('input', { name: 'title', value: emp.title ?? '' })),
-      field(t('admin.companies.order'), h('input', { name: 'sort_order', type: 'number', value: emp.sort_order, style: { maxWidth: '110px' } }))),
-    field(t('admin.companies.photo'), imageInput('photo', emp.photo_url, { cover: true })),
+      field(t('admin.companies.name'), name),
+      field(t('admin.companies.position'), h('input', { name: 'title', value: emp.title ?? '' }))),
+    h('div', { class: 'field' }, h('span', null, t('admin.companies.picture')), picture.el),
     h('div', { class: 'actions' },
       h('button', { class: 'btn small', type: 'submit' }, t('common.save')),
       h('button', { class: 'btn ghost small', type: 'button', onclick: show }, t('common.cancel'))));
@@ -508,23 +729,72 @@ function textColorField(layout, form) {
   return h('div', { class: 'field' }, h('span', null, t('admin.layouts.textColor')), h('div', { class: 'actions' }, input, suggest), hint);
 }
 
+/** Range input with its current value shown next to the label. */
+function slider(label, name, value, { min, max, step = 1, unit, hint }) {
+  const out = h('span', { class: 'faint' });
+  const input = h('input', { type: 'range', name, min, max, step, value, oninput: () => { out.textContent = `${input.value}${unit}`; } });
+  out.textContent = `${value}${unit}`;
+  return h('label', { class: 'field' }, h('span', null, `${label} `, out), input, hint ? h('small', null, hint) : null);
+}
+
+/** Fonts that are usually installed on Windows/macOS/Linux devices, offered in addition to the shipped ones. */
+const SYSTEM_FONTS = ['Segoe UI', 'Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Georgia', 'Times New Roman', 'Courier New'];
+
+/** Table with font, size and color per text element of the display. value() returns the typography object. */
+function typographyEditor(layout, meta) {
+  const listId = 'font-list';
+  const rows = Object.keys(meta.elements).map((key) => {
+    const cur = layout.typography?.[key] ?? {};
+    const font = h('input', {
+      list: listId, value: cur.font ?? '', maxlength: 80, placeholder: t('admin.layouts.fontDefault'), 'aria-label': t('admin.layouts.font'),
+      oninput: () => { font.style.fontFamily = font.value ? `"${font.value}", sans-serif` : ''; },
+    });
+    if (cur.font) font.style.fontFamily = `"${cur.font}", sans-serif`;
+    const size = h('input', { type: 'number', min: 25, max: 400, step: 5, value: cur.size ?? '', placeholder: '100', 'aria-label': t('admin.layouts.size') });
+    const colorOn = h('input', { type: 'checkbox', checked: Boolean(cur.color), 'aria-label': t('admin.layouts.ownColor') });
+    const color = h('input', { type: 'color', value: cur.color ?? layout.text_color, 'aria-label': t('admin.layouts.color'), oninput: () => { colorOn.checked = true; } });
+    const tr = h('tr', null,
+      h('th', { scope: 'row' }, t(`textElements.${key}`), ['weather', 'wifi', 'dock', 'base'].includes(key) ? h('div', { class: 'faint small' }, t(`admin.layouts.sizeHint.${key}`)) : null),
+      h('td', null, font),
+      h('td', null, h('div', { class: 'size-cell' }, size, h('span', { class: 'faint' }, '%'))),
+      h('td', null, key === 'base' ? h('span', { class: 'faint small' }, t('admin.layouts.baseColorHint')) : h('div', { class: 'actions' }, colorOn, color)));
+    return {
+      tr,
+      reset: () => { font.value = ''; font.style.fontFamily = ''; size.value = ''; colorOn.checked = false; },
+      value: () => [key, { font: font.value.trim(), size: size.value, color: key !== 'base' && colorOn.checked ? color.value : '' }],
+    };
+  });
+
+  const el = h('details', { class: 'typo', open: Object.keys(layout.typography ?? {}).length > 0 },
+    h('summary', null, t('admin.layouts.typography')),
+    h('p', { class: 'muted small' }, t('admin.layouts.typographyHint')),
+    h('div', { class: 'typo-scroll' },
+      h('table', { class: 'typo-table' },
+        h('thead', null, h('tr', null,
+          h('th', null, t('admin.layouts.element')), h('th', null, t('admin.layouts.font')), h('th', null, t('admin.layouts.size')), h('th', null, t('admin.layouts.color')))),
+        h('tbody', null, rows.map((r) => r.tr)))),
+    h('datalist', { id: listId }, [...meta.fonts, ...SYSTEM_FONTS].map((f) => h('option', { value: f }))),
+    h('div', { class: 'actions' }, h('button', { class: 'btn ghost small', type: 'button', onclick: () => rows.forEach((r) => r.reset()) }, t('admin.layouts.resetTypography'))));
+
+  return {
+    el,
+    value: () => Object.fromEntries(rows.map((r) => r.value()).filter(([, v]) => v.font || v.size || v.color)),
+  };
+}
+
 async function viewLayouts(id) {
-  const [layouts, templates] = await Promise.all([api('/layouts'), api('/layouts/templates')]);
+  const [layouts, templates, typographyMeta] = await Promise.all([api('/layouts'), api('/layouts/templates'), api('/layouts/typography')]);
   const layout = layouts.find((l) => l.id === Number(id)) ?? layouts.find((l) => l.active) ?? layouts[0];
   const preview = previewFrame('/');
-
-  const blurOut = h('span', { class: 'faint' });
-  const dimOut = h('span', { class: 'faint' });
-  const blur = h('input', { type: 'range', name: 'blur', min: 0, max: 60, value: layout.blur, oninput: () => { blurOut.textContent = `${blur.value}px`; } });
-  const dim = h('input', { type: 'range', name: 'dim', min: 0, max: 90, value: layout.dim, oninput: () => { dimOut.textContent = `${dim.value} %`; } });
-  blurOut.textContent = `${layout.blur}px`;
-  dimOut.textContent = `${layout.dim} %`;
+  const typography = typographyEditor(layout, typographyMeta);
 
   const form = h('form', {
     class: 'card pad stack',
     onsubmit: async (e) => {
       e.preventDefault();
-      if (await run(() => api(`/layouts/${layout.id}`, { method: 'PATCH', form: formData(form) }), t('admin.layouts.saved'))) render();
+      const fd = formData(form);
+      fd.set('typography', JSON.stringify(typography.value()));
+      if (await run(() => api(`/layouts/${layout.id}`, { method: 'PATCH', form: fd }), t('admin.layouts.saved'))) render();
     },
   },
   h('div', { class: 'section-head' },
@@ -540,10 +810,13 @@ async function viewLayouts(id) {
   field(t('admin.layouts.background'), imageInput('background', layout.background_url, { cover: true, dark: true }), t('admin.layouts.backgroundHint')),
   field(t('admin.layouts.logo'), imageInput('logo', layout.logo_url, { dark: true }), t('admin.layouts.logoHint')),
   h('div', { class: 'row' },
+    slider(t('admin.layouts.logoSize'), 'logo_size', layout.logo_size, { min: 20, max: 400, step: 5, unit: ' %' }),
+    slider(t('admin.layouts.tileGap'), 'tile_gap', layout.tile_gap, { min: 0, max: 200, unit: ' px', hint: t('admin.layouts.gapHint') }),
+    slider(t('admin.layouts.footerGap'), 'footer_gap', layout.footer_gap, { min: 0, max: 200, unit: ' px', hint: t('admin.layouts.footerGapHint') })),
+  h('div', { class: 'row' },
     field(t('admin.layouts.accent'), h('input', { type: 'color', name: 'accent_color', value: layout.accent_color })),
-    h('label', { class: 'field' }, h('span', null, `${t('admin.layouts.blur')} `, blurOut), blur),
-    h('label', { class: 'field' }, h('span', null, `${t('admin.layouts.dim')} `, dimOut), dim,
-      h('small', null, t('admin.layouts.dimHint')))),
+    slider(t('admin.layouts.blur'), 'blur', layout.blur, { min: 0, max: 60, unit: 'px' }),
+    slider(t('admin.layouts.dim'), 'dim', layout.dim, { min: 0, max: 90, unit: ' %', hint: t('admin.layouts.dimHint') })),
   h('div', { class: 'actions' },
     h('button', { class: 'btn', type: 'submit' }, t('common.save')),
     layout.active ? null : h('button', {
@@ -555,6 +828,7 @@ async function viewLayouts(id) {
     }, t('common.delete'))));
   // Needs the form to watch the background image input.
   form.insertBefore(textColorField(layout, form), form.querySelector(':scope > .actions'));
+  form.insertBefore(typography.el, form.querySelector(':scope > .actions'));
 
   const newForm = h('form', {
     class: 'row',
@@ -671,7 +945,7 @@ async function viewSettings() {
     h('div', { class: 'grid grid-2' },
       h('div', { class: 'stack' },
         settingsForm(t('admin.settings.general'), ['language']),
-        settingsForm(t('admin.settings.display'), ['site_name', 'welcome_prefix', 'idle_title', 'idle_text', 'rotation_seconds', 'home_timeout_seconds', 'max_employees_per_slide', 'show_employee_titles'])),
+        settingsForm(t('admin.settings.display'), ['site_name', 'welcome_prefix', 'idle_title', 'idle_text', 'home_timeout_seconds', 'show_employee_titles'])),
       h('div', { class: 'stack' }, weatherForm, wifiForm)),
     h('section', { class: 'section card pad stack' },
       h('h2', null, t('admin.settings.api')),

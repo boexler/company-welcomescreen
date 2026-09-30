@@ -7,11 +7,13 @@
   --glass-strong: rgba(255, 255, 255, 0.2);
   --glass-border: rgba(255, 255, 255, 0.28);
   --glass-highlight: rgba(255, 255, 255, 0.25);
-  --text: #ffffff;
-  --muted: color-mix(in srgb, var(--text) 78%, transparent);
-  --faint: color-mix(in srgb, var(--text) 58%, transparent);
-  --tint: color-mix(in srgb, var(--text) 8%, transparent);
-  --tint-strong: color-mix(in srgb, var(--text) 16%, transparent);
+  --base-text: #ffffff;
+  --text: var(--base-text);
+  --font-default: "Segoe UI Variable Display", "Segoe UI", "Inter", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Gaps in px at Full HD, scaled with the screen (set per layout). */
+  --tile-gap: 32;
+  --footer-gap: 32;
+  --logo-size: 1;
   --accent-text: var(--accent);
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
   --veil: 0, 0, 0;
@@ -22,6 +24,14 @@
   --rain: #9fd3ff;
   --ease: cubic-bezier(0.22, 0.8, 0.2, 1);
   color-scheme: dark;
+}
+
+/* Derived text colors; repeated on elements with their own text color (see --color-weather etc.). */
+:root, .weather-card, .wifi-card, .dock {
+  --muted: color-mix(in srgb, var(--text) 78%, transparent);
+  --faint: color-mix(in srgb, var(--text) 58%, transparent);
+  --tint: color-mix(in srgb, var(--text) 8%, transparent);
+  --tint-strong: color-mix(in srgb, var(--text) 16%, transparent);
 }
 
 /* Dark text (for bright background images): bright glass, white veil instead of darkening. */
@@ -42,8 +52,8 @@ body[data-tone="light"] {
 * { box-sizing: border-box; }
 
 html {
-  /* 1rem ≈ 17px at 1080p, 34px at 4K */
-  font-size: clamp(12px, 1.6vmin, 48px);
+  /* 1rem ≈ 17px at 1080p, 34px at 4K; --size-base scales everything (layout setting "All texts"). */
+  font-size: calc(clamp(12px, 1.6vmin, 48px) * var(--size-base, 1));
 }
 
 html, body {
@@ -52,10 +62,13 @@ html, body {
   overflow: hidden;
 }
 
+/* Header, content and dock are stacked in the normal flow, so the dock never covers the content. */
 body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   background: #0b1020;
   color: var(--text);
-  font-family: "Segoe UI Variable Display", "Segoe UI", "Inter", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-base, var(--font-default));
   -webkit-font-smoothing: antialiased;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -111,10 +124,7 @@ button { font: inherit; color: inherit; }
 /* --- Top bar --------------------------------------------------------------- */
 
 .top {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -132,8 +142,8 @@ button { font: inherit; color: inherit; }
 }
 
 .brand-logo {
-  max-height: 4.6rem;
-  max-width: 18rem;
+  max-height: calc(4.6rem * var(--logo-size));
+  max-width: calc(18rem * var(--logo-size));
   object-fit: contain;
   filter: drop-shadow(0 0.2rem 0.8rem rgba(0, 0, 0, 0.35));
 }
@@ -144,7 +154,9 @@ button { font: inherit; color: inherit; }
   gap: 0.7rem;
   padding: 0.6rem 1.2rem 0.6rem 0.9rem;
   border-radius: 999px;
-  font-size: 1.3rem;
+  font-family: var(--font-weather_chip, inherit);
+  font-size: calc(1.3rem * var(--size-weather_chip, 1));
+  color: var(--color-weather_chip, var(--text));
   cursor: pointer;
 }
 
@@ -153,23 +165,37 @@ button { font: inherit; color: inherit; }
 .weather-chip .place { color: var(--muted); font-size: 1rem; }
 
 .clock { text-align: right; text-shadow: var(--text-shadow); }
-.clock-time { font-size: 4.2rem; font-weight: 300; letter-spacing: 0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
-.clock-date { margin-top: 0.4rem; font-size: 1.2rem; color: var(--muted); }
+.clock-time {
+  font-family: var(--font-clock_time, inherit);
+  font-size: calc(4.2rem * var(--size-clock_time, 1));
+  color: var(--color-clock_time, var(--text));
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.clock-date {
+  margin-top: 0.4rem;
+  font-family: var(--font-clock_date, inherit);
+  font-size: calc(1.2rem * var(--size-clock_date, 1));
+  color: var(--color-clock_date, var(--muted));
+}
 
 /* --- Views ----------------------------------------------------------------- */
 
 .stage {
-  position: fixed;
-  inset: 0;
+  position: relative;
   display: grid;
-  place-items: center;
-  padding: 9rem 4rem 10rem;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  padding: 0 4rem;
+  margin-bottom: calc(var(--footer-gap) * 100vmin / 1080);
 }
 
 .view {
   grid-area: 1 / 1;
-  width: 100%;
+  min-height: 0;
   display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   opacity: 0;
   visibility: hidden;
@@ -184,6 +210,13 @@ button { font: inherit; color: inherit; }
   transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), visibility 0s;
 }
 
+/* Zoomed out by display.js when the content is taller than the space between header and dock. */
+.fit {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+}
+
 .card {
   position: relative;
   width: min(100%, 72rem);
@@ -192,33 +225,46 @@ button { font: inherit; color: inherit; }
   text-align: center;
 }
 
-/* --- Home: welcome slides -------------------------------------------------- */
+/* --- Home: one tile per visit, side by side, all of the same height -------- */
 
-.slides {
+.tiles {
   display: grid;
-  width: min(100%, 76rem);
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+  gap: calc(var(--tile-gap) * 100vmin / 1080);
+  width: min(100%, 72rem);
 }
 
-.slide {
-  grid-area: 1 / 1;
+.tiles.multi { width: min(100%, calc(var(--cols) * 56rem)); }
+
+/* The six sections of a tile (headline, logo, name, text, employees, contacts) are rows of the surrounding grid, so
+   tiles next to each other share the row heights: everything lines up and all tiles end up equally tall. */
+.tile {
+  width: auto;
   display: grid;
-  place-items: center;
+  grid-row: span 6;
+  grid-template-rows: subgrid;
+  row-gap: 0;
+  align-items: start;
 }
 
-.slide.enter .card { animation: card-in 0.9s var(--ease) both; }
-.slide.leave .card { animation: card-out 0.6s var(--ease) both; }
+.tile .sec { min-width: 0; text-align: center; }
+.tile .sec-logo { align-self: center; }
+
+.tiles.multi .tile { padding: 2.6rem 2.2rem; border-radius: 2rem; }
+.tiles.multi .people { gap: 1.2rem 1.4rem; margin-top: 2rem; }
+.tiles.multi .person { width: 8.6rem; }
+.tiles.multi .person .avatar { width: 5.2rem; height: 5.2rem; font-size: 1.6rem; }
+.tiles.multi .people.no-avatars { gap: 0.7rem; }
+.tiles.multi .people.no-avatars .person { width: auto; min-width: 9rem; }
+
+.enter .card { animation: card-in 0.9s var(--ease) both; animation-delay: calc(var(--i, 0) * 0.12s); }
 
 @keyframes card-in {
   from { opacity: 0; transform: translateY(2.5rem) scale(0.96); filter: blur(8px); }
   to   { opacity: 1; transform: none; filter: none; }
 }
 
-@keyframes card-out {
-  from { opacity: 1; transform: none; filter: none; }
-  to   { opacity: 0; transform: translateY(-2rem) scale(0.97); filter: blur(8px); }
-}
-
-.slide.enter .stagger > * { animation: rise 0.7s var(--ease) both; }
+.enter .stagger > * { animation: rise 0.7s var(--ease) both; }
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(1.2rem); }
@@ -226,11 +272,12 @@ button { font: inherit; color: inherit; }
 }
 
 .kicker {
-  font-size: 1.5rem;
+  font-family: var(--font-headline, inherit);
+  font-size: calc(1.5rem * var(--size-headline, 1));
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--accent-text);
+  color: var(--color-headline, var(--accent-text));
 }
 
 .kicker::after {
@@ -256,22 +303,28 @@ button { font: inherit; color: inherit; }
 }
 
 .company-name {
+  --fs: 4.2rem;
   margin: 0.8rem 0 0;
-  font-size: 4.2rem;
+  font-family: var(--font-company_name, inherit);
+  font-size: calc(var(--fs) * var(--size-company_name, 1));
+  color: var(--color-company_name, var(--text));
   font-weight: 650;
   line-height: 1.1;
   letter-spacing: -0.01em;
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
-.company-logo + .company-name { font-size: 2.6rem; margin-top: 1rem; }
+.tiles.multi .company-name { --fs: 3.2rem; }
+.tile.has-logo .company-name, .company-logo + .company-name { --fs: 2.6rem; margin-top: 1rem; }
 
 .message {
   margin: 1.2rem auto 0;
   max-width: 48rem;
-  font-size: 1.5rem;
+  font-family: var(--font-message, inherit);
+  font-size: calc(1.5rem * var(--size-message, 1));
+  color: var(--color-message, var(--muted));
   line-height: 1.45;
-  color: var(--muted);
   text-wrap: balance;
 }
 
@@ -310,8 +363,34 @@ button { font: inherit; color: inherit; }
 
 .people.compact .avatar { width: 5.2rem; height: 5.2rem; font-size: 1.6rem; }
 
-.person .name { margin-top: 0.8rem; font-size: 1.2rem; font-weight: 600; line-height: 1.25; }
-.person .title { margin-top: 0.2rem; font-size: 0.95rem; color: var(--faint); line-height: 1.25; }
+.person .name {
+  margin-top: 0.8rem;
+  font-family: var(--font-person_name, inherit);
+  font-size: calc(1.2rem * var(--size-person_name, 1));
+  color: var(--color-person_name, var(--text));
+  font-weight: 600;
+  line-height: 1.25;
+}
+.person .title {
+  margin-top: 0.2rem;
+  font-family: var(--font-person_title, inherit);
+  font-size: calc(0.95rem * var(--size-person_title, 1));
+  color: var(--color-person_title, var(--faint));
+  line-height: 1.25;
+}
+
+/* Without pictures the employees are shown as name tags. */
+.people.no-avatars { gap: 0.9rem; }
+.people.no-avatars .person {
+  width: auto;
+  min-width: 11rem;
+  max-width: 22rem;
+  padding: 0.8rem 1.4rem;
+  border-radius: 1.1rem;
+  background: var(--tint);
+  border: 1px solid var(--tint-strong);
+}
+.people.no-avatars .person .name { margin-top: 0; }
 
 .host {
   display: inline-flex;
@@ -322,51 +401,42 @@ button { font: inherit; color: inherit; }
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   background: var(--accent-soft);
-  font-size: 1.05rem;
-  color: var(--muted);
+  font-family: var(--font-hosts, inherit);
+  font-size: calc(1.05rem * var(--size-hosts, 1));
+  color: var(--color-hosts, var(--muted));
 }
 
 .host > span:first-child { color: var(--accent-text); }
-.host b { color: var(--text); font-weight: 600; }
+.host b { color: var(--color-hosts, var(--text)); font-weight: 600; }
 
-.pager {
-  display: flex;
-  justify-content: center;
-  gap: 0.6rem;
-  margin-top: 1.8rem;
+.idle .company-name {
+  font-family: var(--font-idle_title, inherit);
+  font-size: calc(4.6rem * var(--size-idle_title, 1));
+  color: var(--color-idle_title, var(--text));
 }
-
-.pager i {
-  position: relative;
-  overflow: hidden;
-  width: 0.6rem;
-  height: 0.6rem;
-  border-radius: 999px;
-  background: var(--tint-strong);
-  transition: width 0.4s var(--ease), background 0.4s;
+.idle .site {
+  margin-top: 0.4rem;
+  font-family: var(--font-idle_site, inherit);
+  font-size: calc(2rem * var(--size-idle_site, 1));
+  color: var(--color-idle_site, var(--muted));
+  font-weight: 500;
 }
-
-.pager i.done { background: color-mix(in srgb, var(--accent) 55%, transparent); }
-.pager i.on { width: 4rem; }
-
-/* Fills up while the current company is shown (duration = rotation time). */
-.pager i.on b {
-  position: absolute;
-  inset: 0;
-  background: var(--accent);
-  border-radius: inherit;
-  transform-origin: left;
-  animation: rotation-progress var(--rotation, 12s) linear forwards;
+.idle .message {
+  font-family: var(--font-idle_text, inherit);
+  font-size: calc(1.5rem * var(--size-idle_text, 1));
+  color: var(--color-idle_text, var(--muted));
 }
-
-@keyframes rotation-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-
-.idle .company-name { font-size: 4.6rem; }
-.idle .site { margin-top: 0.4rem; font-size: 2rem; color: var(--muted); font-weight: 500; }
 
 /* --- Weather view ---------------------------------------------------------- */
 
-.weather-card { width: min(100%, 78rem); text-align: left; }
+.weather-card {
+  --text: var(--color-weather, var(--base-text));
+  width: min(100%, 78rem);
+  text-align: left;
+  color: var(--text);
+  font-family: var(--font-weather, inherit);
+  zoom: var(--size-weather, 1);
+}
 
 .wx-now {
   display: grid;
@@ -422,6 +492,10 @@ button { font: inherit; color: inherit; }
 /* --- Wi-Fi view ------------------------------------------------------------ */
 
 .wifi-card {
+  --text: var(--color-wifi, var(--base-text));
+  color: var(--text);
+  font-family: var(--font-wifi, inherit);
+  zoom: var(--size-wifi, 1);
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 3rem;
@@ -451,10 +525,13 @@ button { font: inherit; color: inherit; }
 /* --- Dock ------------------------------------------------------------------ */
 
 .dock {
-  position: fixed;
-  left: 50%;
-  bottom: 2.2rem;
-  transform: translateX(-50%);
+  --text: var(--color-dock, var(--base-text));
+  position: relative;
+  justify-self: center;
+  margin-bottom: 2.2rem;
+  color: var(--text);
+  font-family: var(--font-dock, inherit);
+  zoom: var(--size-dock, 1);
   display: flex;
   gap: 0.4rem;
   padding: 0.6rem;
@@ -537,7 +614,7 @@ button { font: inherit; color: inherit; }
 
 @media (max-aspect-ratio: 1/1) {
   /* Portrait screens (stele) */
-  html { font-size: clamp(12px, 2vmin, 48px); }
+  html { font-size: calc(clamp(12px, 2vmin, 48px) * var(--size-base, 1)); }
   .wifi-card { grid-template-columns: 1fr; text-align: center; }
   .wifi-card .kicker::after { margin-left: auto; }
   .qr { margin: 0 auto; }
@@ -549,5 +626,5 @@ button { font: inherit; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .bg { animation: none; }
-  .slide.enter .card, .slide.leave .card, .slide.enter .stagger > * { animation-duration: 0.01s; }
+  .enter .card, .enter .stagger > * { animation-duration: 0.01s; animation-delay: 0s; }
 }

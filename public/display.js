@@ -10,9 +10,6 @@ const WEATHER_REFRESH_MS = 10 * 60_000;
 
 const state = {
   data: null,
-  slides: [],
-  slideIndex: -1,
-  slideTimer: null,
   view: 'home',
   homeTimer: null,
   weather: null,
@@ -129,11 +126,13 @@ async function loadDisplay() {
     }
     applyLayout(data.layout);
     applyNav(data);
-    if (languageChanged || !prev || JSON.stringify(prev.slides) !== JSON.stringify(data.slides) || JSON.stringify(prev.texts) !== JSON.stringify(data.texts)) {
-      buildSlides();
+    if (languageChanged || !prev || JSON.stringify(prev.visits) !== JSON.stringify(data.visits) || JSON.stringify(prev.texts) !== JSON.stringify(data.texts)) {
+      renderHome();
     }
     if (languageChanged || !prev || JSON.stringify(prev.wifi) !== JSON.stringify(data.wifi)) renderWifi();
     if (!prev || prev.weather?.location !== data.weather?.location) loadWeather();
+    // Sizes, fonts and gaps of the layout may have changed.
+    if (prev && JSON.stringify(prev.layout) !== JSON.stringify(data.layout)) fitAll();
   } catch {
     $('offline').hidden = false;
   }
@@ -157,12 +156,32 @@ async function loadWeather() {
 // Layout
 // ---------------------------------------------------------------------------
 
+/** CSS font-family value for a font name from the layout; unknown fonts fall back to the default font. */
+const fontFamily = (name) => `"${name}", var(--font-default)`;
+
+/** Font, size and color per text element (--font-<key>, --size-<key>, --color-<key>, used in display.css). */
+function applyTypography(typography = {}) {
+  const root = document.documentElement.style;
+  for (const name of [...root]) {
+    if (/^--(font|size|color)-[a-z_]+$/.test(name) && name !== '--font-default') root.removeProperty(name);
+  }
+  for (const [key, { font, size, color }] of Object.entries(typography)) {
+    if (font) root.setProperty(`--font-${key}`, fontFamily(font));
+    if (size) root.setProperty(`--size-${key}`, String(size / 100));
+    if (color) root.setProperty(`--color-${key}`, color);
+  }
+}
+
 function applyLayout(layout) {
   const root = document.documentElement.style;
   root.setProperty('--accent', layout.accent_color);
   root.setProperty('--blur', `${layout.blur}px`);
   root.setProperty('--dim', String(layout.dim / 100));
-  root.setProperty('--text', layout.text_color);
+  root.setProperty('--base-text', layout.text_color);
+  root.setProperty('--logo-size', String(layout.logo_size / 100));
+  root.setProperty('--tile-gap', String(layout.tile_gap));
+  root.setProperty('--footer-gap', String(layout.footer_gap));
+  applyTypography(layout.typography);
   // Dark text → bright glass and a white veil; light text → the classic dark look.
   const darkText = isDarkText(layout.text_color);
   document.body.dataset.tone = darkText ? 'light' : 'dark';
@@ -194,37 +213,84 @@ function applyNav(data) {
 }
 
 // ---------------------------------------------------------------------------
-// Home: rotating welcome slides
+// Fitting: views are scaled down when their content is taller than the space between header and dock
+// ---------------------------------------------------------------------------
+
+/**
+ * Zooms the content out until it fits. Zoom (unlike a transform) lets the content reflow into the space it gains,
+ * so e.g. narrow tiles get wider again; the largest zoom that fits is found by bisection.
+ */
+function fitView(view) {
+  const fit = view.querySelector(':scope > .fit');
+  if (!fit) return;
+  const available = view.clientHeight;
+  const fits = (zoom) => {
+    fit.style.zoom = String(zoom);
+    return fit.offsetHeight * zoom <= available;
+  };
+  if (!available || fits(1)) return;
+  let lo = 0.3;
+  let hi = 1;
+  for (let i = 0; i < 7; i++) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) lo = mid;
+    else hi = mid;
+  }
+  fit.style.zoom = String(lo);
+}
+
+let fitFrame = 0;
+function fitAll() {
+  cancelAnimationFrame(fitFrame);
+  fitFrame = requestAnimationFrame(() => {
+    for (const view of document.querySelectorAll('.view')) fitView(view);
+  });
+}
+
+/** Replaces the content of a view (wrapped for fitting) and fits it again once images have loaded. */
+function setView(id, content) {
+  const view = $(id);
+  view.replaceChildren(h('div', { class: 'fit' }, content));
+  for (const img of view.querySelectorAll('img')) {
+    if (!img.complete) img.addEventListener('load', fitAll, { once: true });
+  }
+  fitAll();
+}
+
+// The space changes with the window size and the header height (logo, clock size).
+new ResizeObserver(fitAll).observe($('stage'));
+document.fonts?.addEventListener('loadingdone', fitAll);
+
+// ---------------------------------------------------------------------------
+// Home: one tile per visit, side by side
 // ---------------------------------------------------------------------------
 
 function avatar(person) {
-  if (person.photo_url) return h('img', { class: 'avatar', src: person.photo_url, alt: '' });
-  return h('div', { class: 'avatar', style: { background: `hsl(${hue(person.name)} 45% 42% / 0.85)` }, 'aria-hidden': 'true' }, initials(person.name));
+  if (person.image_url) return h('img', { class: 'avatar', src: person.image_url, alt: '' });
+  const background = person.avatar_color ?? `hsl(${hue(person.name)} 45% 42% / 0.85)`;
+  return h('div', { class: 'avatar', style: { background }, 'aria-hidden': 'true' }, initials(person.name));
 }
 
-function slideCard(slide, index, total) {
-  const people = slide.employees;
-  return h('div', { class: 'card glass' },
-    h('div', { class: 'stagger' },
-      h('div', { class: 'kicker' }, slide.headline || t('display.welcome')),
-      slide.company.logo_url ? h('img', { class: 'company-logo', src: slide.company.logo_url, alt: '' }) : null,
-      h('h1', { class: 'company-name' }, slide.company.name),
-      slide.message ? h('p', { class: 'message' }, slide.message) : null),
-    people.length
-      ? h('div', { class: `people stagger ${people.length > 6 ? 'compact' : ''}` },
-        people.map((p, i) => h('div', { class: 'person', style: { animationDelay: `${0.25 + i * 0.08}s` } },
-          avatar(p),
+/**
+ * One tile per visit. Every tile has the same six sections (empty ones included), which share their row heights with
+ * the tiles next to it (CSS subgrid) – so headline, logo, name, text, employees and contacts line up across tiles.
+ */
+function visitTile(visit, index) {
+  const people = visit.employees;
+  const section = (name, content) => h('div', { class: `sec sec-${name}` }, content);
+  return h('article', { class: `card glass tile stagger ${visit.company.logo_url ? 'has-logo' : ''}`, style: `--i: ${index}` },
+    section('kicker', h('div', { class: 'kicker' }, visit.headline || t('display.welcome'))),
+    section('logo', visit.company.logo_url ? h('img', { class: 'company-logo', src: visit.company.logo_url, alt: '' }) : null),
+    section('name', h('h1', { class: 'company-name' }, visit.company.name)),
+    section('message', visit.message ? h('p', { class: 'message' }, visit.message) : null),
+    section('people', people.length
+      ? h('div', { class: `people stagger ${visit.show_avatars ? '' : 'no-avatars'} ${people.length > 6 ? 'compact' : ''}` },
+        people.map((p, i) => h('div', { class: 'person', style: { animationDelay: `${0.25 + index * 0.12 + i * 0.08}s` } },
+          visit.show_avatars ? avatar(p) : null,
           h('div', { class: 'name' }, p.name),
           p.title ? h('div', { class: 'title' }, p.title) : null)))
-      : null,
-    slide.hosts?.length ? hostLine(slide.hosts) : null,
-    total > 1 ? pager(index, total) : null);
-}
-
-/** Page dots; the current one fills up until the next company is shown. */
-function pager(index, total) {
-  return h('div', { class: 'pager', style: `--rotation: ${state.data.timing.rotation_seconds}s` },
-    Array.from({ length: total }, (_, i) => h('i', { class: i === index ? 'on' : i < index ? 'done' : '' }, i === index ? h('b') : null)));
+      : null),
+    section('hosts', visit.hosts?.length ? hostLine(visit.hosts) : null));
 }
 
 function hostLine(hosts) {
@@ -245,34 +311,24 @@ function idleCard(texts) {
       texts.idle_text ? h('p', { class: 'message' }, texts.idle_text) : null));
 }
 
-function buildSlides() {
-  clearTimeout(state.slideTimer);
-  state.slides = state.data.slides;
-  state.slideIndex = -1;
-  const home = $('view-home');
-  home.replaceChildren(h('div', { class: 'slides' }));
-  nextSlide();
+/** Columns for n tiles: side by side on landscape screens (two rows from 5 visits), at most two on portrait screens. */
+function columns(n) {
+  if (matchMedia('(max-aspect-ratio: 1/1)').matches) return n <= 2 ? 1 : 2;
+  return n <= 4 ? n : Math.ceil(n / 2);
 }
 
-function nextSlide() {
-  clearTimeout(state.slideTimer);
-  const container = document.querySelector('#view-home .slides');
-  const { slides } = state;
-  const total = slides.length;
-  state.slideIndex = total ? (state.slideIndex + 1) % total : 0;
-
-  const card = total ? slideCard(slides[state.slideIndex], state.slideIndex, total) : idleCard(state.data.texts);
-  const incoming = h('div', { class: 'slide enter' }, card);
-
-  for (const old of container.querySelectorAll('.slide:not(.leave)')) {
-    old.classList.remove('enter');
-    old.classList.add('leave');
-    setTimeout(() => old.remove(), 700);
-  }
-  container.append(incoming);
-
-  if (total > 1) state.slideTimer = setTimeout(nextSlide, state.data.timing.rotation_seconds * 1000);
+function renderHome() {
+  const { visits, texts } = state.data;
+  const content = visits.length
+    ? h('div', { class: `tiles enter ${visits.length > 1 ? 'multi' : ''}`, style: `--cols: ${columns(visits.length)}` }, visits.map(visitTile))
+    : h('div', { class: 'enter', style: 'width: 100%; display: grid; justify-items: center' }, idleCard(texts));
+  setView('view-home', content);
 }
+
+matchMedia('(max-aspect-ratio: 1/1)').addEventListener('change', () => {
+  const tiles = document.querySelector('#view-home .tiles');
+  if (tiles) tiles.style.setProperty('--cols', columns(state.data.visits.length));
+});
 
 // ---------------------------------------------------------------------------
 // Weather
@@ -280,11 +336,10 @@ function nextSlide() {
 
 function renderWeather() {
   const chip = $('weather-chip');
-  const view = $('view-weather');
   const w = state.weather;
   if (!w) {
     chip.hidden = true;
-    view.replaceChildren(h('div', { class: 'card glass' }, h('div', { class: 'kicker' }, t('display.weather')), h('p', { class: 'message' }, t('weather.unavailable'))));
+    setView('view-weather', h('div', { class: 'card glass weather-card' }, h('div', { class: 'kicker' }, t('display.weather')), h('p', { class: 'message' }, t('weather.unavailable'))));
     return;
   }
 
@@ -294,7 +349,7 @@ function renderWeather() {
   const now = Date.now();
   const hours = w.hourly.filter((x) => new Date(x.time).getTime() >= now - 3600_000).slice(0, 8);
 
-  view.replaceChildren(h('div', { class: 'card glass weather-card' },
+  setView('view-weather', h('div', { class: 'card glass weather-card' },
     h('div', { class: 'wx-now' },
       weatherIcon(w.current.icon),
       h('div', null,
@@ -323,12 +378,11 @@ function renderWeather() {
 
 function renderWifi() {
   const wifi = state.data.wifi;
-  const view = $('view-wifi');
   if (!wifi) {
-    view.replaceChildren();
+    $('view-wifi').replaceChildren();
     return;
   }
-  view.replaceChildren(h('div', { class: 'card glass wifi-card' },
+  setView('view-wifi', h('div', { class: 'card glass wifi-card' },
     h('div', null,
       h('div', { class: 'kicker' }, t('display.wifiKicker')),
       h('h2', null, t('display.wifiTitle')),
@@ -367,12 +421,7 @@ document.querySelector('.dock').append(h('div', { class: 'timeout' }));
 
 document.addEventListener('click', (e) => {
   const target = e.target.closest('[data-view]');
-  if (target) {
-    showView(target.dataset.view);
-    return;
-  }
-  // Tapping the welcome card skips to the next company.
-  if (state.view === 'home' && e.target.closest('#view-home .card') && state.slides.length > 1) nextSlide();
+  if (target) showView(target.dataset.view);
 });
 
 let cursorTimer;
@@ -388,7 +437,6 @@ for (const type of ['pointerdown', 'pointermove', 'keydown', 'touchstart']) {
 document.addEventListener('keydown', (e) => {
   const keys = { 1: 'home', 2: 'weather', 3: 'wifi', h: 'home', w: 'weather', l: 'wifi', Escape: 'home' };
   if (keys[e.key]) showView(keys[e.key]);
-  if (e.key === 'ArrowRight' && state.view === 'home') nextSlide();
 });
 
 // ---------------------------------------------------------------------------

@@ -33,6 +33,49 @@ export function toImageBuffer(input) {
   return Buffer.from(s, 'base64');
 }
 
+const FETCH_TIMEOUT_MS = 15_000;
+
+export const isImageUrl = (value) => typeof value === 'string' && /^https?:\/\/\S+$/i.test(value.trim());
+
+/** Downloads an image (http/https) with a timeout and the same size limit as uploads. */
+export async function fetchImage(url) {
+  let res;
+  try {
+    res = await fetch(url.trim(), {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: { Accept: 'image/*', 'User-Agent': 'company-welcomescreen' },
+    });
+  } catch (err) {
+    throw new HttpError(400, 'errors.imageUrlUnreachable', { url, message: err.cause?.message ?? err.message });
+  }
+  if (!res.ok) throw new HttpError(400, 'errors.imageUrlStatus', { url, status: res.status });
+  const tooLarge = () => new HttpError(413, 'errors.imageTooLarge', { max: config.maxImageBytes / 1024 / 1024 });
+  if (Number(res.headers.get('content-length')) > config.maxImageBytes) throw tooLarge();
+
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of res.body) {
+    size += chunk.length;
+    if (size > config.maxImageBytes) throw tooLarge();
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Replaces image URLs by the downloaded image, for each of `fields`: either the field itself contains an http(s) URL
+ * (JSON/MCP) or `<field>_url` does (admin forms). An uploaded file in the field takes precedence over `<field>_url`.
+ */
+export async function resolveImageUrls(body, fields) {
+  for (const field of fields) {
+    const urlField = `${field}_url`;
+    const url = isImageUrl(body[field]) ? body[field] : body[field] == null || body[field] === '' ? body[urlField] : null;
+    delete body[urlField];
+    if (isImageUrl(url)) body[field] = await fetchImage(url);
+  }
+  return body;
+}
+
 export function storeImage(input) {
   const buf = toImageBuffer(input);
   if (!buf) return null;

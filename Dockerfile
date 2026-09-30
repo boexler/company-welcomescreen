@@ -17,6 +17,7 @@ COPY public ./public
 COPY scripts ./scripts
 COPY migrations ./migrations
 COPY locales ./locales
+COPY assets ./assets
 
 RUN mkdir -p /data && chown node:node /data
 

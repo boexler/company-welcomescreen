@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { config } from './config.js';
 import { requireAdmin, isAuthorized } from './auth.js';
-import { getImage } from './images.js';
+import { getImage, resolveImageUrls } from './images.js';
 import { HttpError } from './errors.js';
 import { LANGUAGES } from './i18n.js';
 import { getWeather, geocode } from './weather.js';
@@ -17,11 +17,14 @@ const IMAGE_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
 };
 
-/** Accepts JSON (image as base64 / data URL / raw SVG) or multipart (image as file field). */
-function withFiles(req) {
+/**
+ * Accepts JSON (image as base64 / data URL / raw SVG / http(s) URL) or multipart (image as file field, or its URL in
+ * "<field>_url"). Images given by URL are downloaded.
+ */
+async function withFiles(req, ...imageFields) {
   const body = { ...req.body };
   for (const [field, files] of Object.entries(req.files ?? {})) body[field] = files[0];
-  return body;
+  return resolveImageUrls(body, imageFields);
 }
 
 const images = (...fields) => upload.fields(fields.map((name) => ({ name, maxCount: 1 })));
@@ -55,22 +58,27 @@ export function createApiRouter() {
   // --- Companies -----------------------------------------------------------
   api.get('/companies', (req, res) => res.json(svc.listCompanies()));
   api.get('/companies/:ref', (req, res) => res.json(svc.getCompany(req.params.ref)));
-  api.post('/companies', requireAdmin, images('logo'), (req, res) => res.status(201).json(svc.createCompany(withFiles(req))));
-  api.patch('/companies/:ref', requireAdmin, images('logo'), (req, res) => res.json(svc.updateCompany(req.params.ref, withFiles(req))));
+  api.post('/companies', requireAdmin, images('logo'), async (req, res) => res.status(201).json(svc.createCompany(await withFiles(req, 'logo'))));
+  api.patch('/companies/:ref', requireAdmin, images('logo'), async (req, res) => res.json(svc.updateCompany(req.params.ref, await withFiles(req, 'logo'))));
   api.delete('/companies/:ref', requireAdmin, (req, res) => res.json(svc.deleteCompany(req.params.ref)));
 
   // --- Employees -----------------------------------------------------------
   api.get('/employees', (req, res) => res.json(svc.listEmployees({ company: req.query.company ?? req.query.company_id })));
   api.get('/employees/:ref', (req, res) => res.json(svc.getEmployee(req.params.ref, req.query.company)));
-  api.post('/employees', requireAdmin, images('photo'), (req, res) => {
-    const body = withFiles(req);
+  api.post('/employees', requireAdmin, images('photo'), async (req, res) => {
+    const body = await withFiles(req, 'photo');
     res.status(201).json(svc.createEmployee({ ...body, company: body.company ?? body.company_id }));
   });
-  api.patch('/employees/:ref', requireAdmin, images('photo'), (req, res) => {
-    const body = withFiles(req);
+  api.patch('/employees/:ref', requireAdmin, images('photo'), async (req, res) => {
+    const body = await withFiles(req, 'photo');
     res.json(svc.updateEmployee(req.params.ref, { ...body, company: body.company ?? body.company_id }));
   });
   api.delete('/employees/:ref', requireAdmin, (req, res) => res.json(svc.deleteEmployee(req.params.ref)));
+
+  // --- Avatar pool ---------------------------------------------------------
+  api.get('/avatars', (req, res) => res.json(svc.listAvatars()));
+  api.post('/avatars', requireAdmin, images('image'), async (req, res) => res.status(201).json(svc.createAvatar(await withFiles(req, 'image'))));
+  api.delete('/avatars/:ref', requireAdmin, (req, res) => res.json(svc.deleteAvatar(req.params.ref)));
 
   // --- Visits --------------------------------------------------------------
   api.get('/visits', (req, res) => {
@@ -91,9 +99,10 @@ export function createApiRouter() {
   // --- Layouts -------------------------------------------------------------
   api.get('/layouts', (req, res) => res.json(svc.listLayouts()));
   api.get('/layouts/templates', (req, res) => res.json(svc.TEMPLATES));
+  api.get('/layouts/typography', (req, res) => res.json({ elements: svc.TEXT_ELEMENTS, fonts: svc.FONTS }));
   api.get('/layouts/:ref', (req, res) => res.json(svc.getLayout(req.params.ref)));
-  api.post('/layouts', requireAdmin, images('background', 'logo'), (req, res) => res.status(201).json(svc.createLayout(withFiles(req))));
-  api.patch('/layouts/:ref', requireAdmin, images('background', 'logo'), (req, res) => res.json(svc.updateLayout(req.params.ref, withFiles(req))));
+  api.post('/layouts', requireAdmin, images('background', 'logo'), async (req, res) => res.status(201).json(svc.createLayout(await withFiles(req, 'background', 'logo'))));
+  api.patch('/layouts/:ref', requireAdmin, images('background', 'logo'), async (req, res) => res.json(svc.updateLayout(req.params.ref, await withFiles(req, 'background', 'logo'))));
   api.post('/layouts/:ref/activate', requireAdmin, (req, res) => res.json(svc.activateLayout(req.params.ref)));
   api.delete('/layouts/:ref', requireAdmin, (req, res) => res.json(svc.deleteLayout(req.params.ref)));
 
