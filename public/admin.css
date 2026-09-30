@@ -74,6 +74,7 @@ h3 { font-size: 15px; }
 
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
 .row > .field { flex: 1 1 180px; }
+.row.top { align-items: flex-start; }
 
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field > span { font-size: 13px; color: var(--muted); }
@@ -200,6 +201,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .typo-table input[type="number"] { width: 76px; }
 .typo-table input[type="color"] { width: 44px; height: 30px; }
 .size-cell { display: flex; align-items: center; gap: 4px; }
+.typo-table .actions { flex-wrap: nowrap; }
 
 .image-field { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .image-field .preview { width: 120px; height: 68px; border-radius: 8px; background: #f4f6f9 center / contain no-repeat; flex: none; border: 1px solid var(--border); }
