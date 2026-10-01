@@ -3,7 +3,7 @@ import { db, tx } from './db.js';
 import { config } from './config.js';
 import { storeImage, deleteImage } from './images.js';
 import { HttpError } from './errors.js';
-import { msg, LANGUAGES, isLanguage, FALLBACK_LANGUAGE } from './i18n.js';
+import { msg, translate, LANGUAGES, isLanguage, FALLBACK_LANGUAGE } from './i18n.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -750,6 +750,35 @@ export function updateLayout(ref, { name, template, background, remove_backgroun
           cleanInt(dim, { field: msg('fields.dim'), min: 0, max: 90 }) ?? cur.dim,
           f.logo_size ?? cur.logo_size, f.company_logo_size ?? cur.company_logo_size, f.tile_gap ?? cur.tile_gap, f.footer_gap ?? cur.footer_gap, f.typography ?? cur.typography,
           id),
+      'errors.layoutExists', { name: newName },
+    );
+    if (truthy(activate)) updateSettings({ active_layout_id: id });
+    return getLayout(id);
+  });
+}
+
+/**
+ * Duplicates a layout including its images (each layout owns its images). Without a name the copy is called
+ * "<name> (copy)" in the configured language, numbered if that name is taken.
+ */
+export function copyLayout(ref, { name, activate } = {}) {
+  return tx(() => {
+    const { id: sourceId, name: sourceName, created_at, updated_at, background_image_id, logo_image_id, ...values } =
+      db.prepare('SELECT * FROM layouts WHERE id = ?').get(resolveLayoutId(ref));
+    const exists = db.prepare('SELECT 1 FROM layouts WHERE name = ? COLLATE NOCASE');
+    let newName = cleanText(name, { field: msg('fields.name'), max: 80 });
+    if (!newName) {
+      const base = translate(currentLanguage(), 'layouts.copyName', { name: sourceName });
+      newName = base;
+      for (let n = 2; exists.get(newName); n++) newName = `${base} ${n}`;
+    }
+    const copyImage = (imageId) => (imageId == null ? null
+      : db.prepare('INSERT INTO images (mime, data) SELECT mime, data FROM images WHERE id = ?').run(imageId).lastInsertRowid);
+    const row = { ...values, name: newName, background_image_id: copyImage(background_image_id), logo_image_id: copyImage(logo_image_id) };
+    const columns = Object.keys(row);
+    const id = conflictOnUnique(
+      () => db.prepare(`INSERT INTO layouts (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
+        .run(...columns.map((c) => row[c])).lastInsertRowid,
       'errors.layoutExists', { name: newName },
     );
     if (truthy(activate)) updateSettings({ active_layout_id: id });

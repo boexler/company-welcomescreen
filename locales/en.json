@@ -209,6 +209,10 @@
       "none": "No pictures in the pool yet."
     },
     "layouts": {
+      "nameHint": "To rename, change the name and save – also for the active layout.",
+      "copy": "Copy layout",
+      "copyHint": "Creates a copy of the saved layout with all its settings and images.",
+      "copied": "Copy “{name}” created – you can change its name at the top.",
       "logoSize": "Size of your own logo",
       "companyLogoSize": "Size of the visitors' logos",
       "companyLogoSizeHint": "Logo of the visiting company in the visit tiles.",
@@ -324,6 +328,10 @@
     "weather": "“Weather” page",
     "wifi": "“Wi-Fi” page",
     "dock": "Navigation at the bottom"
+  },
+
+  "layouts": {
+    "copyName": "{name} (copy)"
   },
 
   "fields": {

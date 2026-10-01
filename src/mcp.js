@@ -135,7 +135,7 @@ function buildServer(baseUrl) {
   tool(server, 'list_layouts', 'Lists the layouts (appearance) and which one is active.', {}, () => svc.listLayouts());
   tool(server, 'update_layout', 'Changes a layout: background image, logo top left (and its size), accent and text color, blur, dimming, spacing and fonts/sizes/colors of the text elements.', {
     layout: layoutRef,
-    name: z.string().min(1).optional(),
+    name: z.string().min(1).optional().describe('New name (renames the layout; also possible for the active one)'),
     background: image.optional(),
     remove_background: z.boolean().optional(),
     logo: image.optional(),
@@ -155,6 +155,11 @@ function buildServer(baseUrl) {
     })).optional().describe(`Replaces all text settings. Keys: ${Object.entries(svc.TEXT_ELEMENTS).map(([k, v]) => `${k} (${v})`).join(', ')}`),
     activate: z.boolean().optional(),
   }, async ({ layout, ...patch }) => svc.updateLayout(layout, await resolveImageUrls(patch, ['background', 'logo'])));
+  tool(server, 'copy_layout', 'Duplicates a layout with all its settings and images, e.g. as a starting point for a seasonal layout.', {
+    layout: layoutRef,
+    name: z.string().min(1).optional().describe('Name of the copy; default: "<name> (copy)"'),
+    activate: z.boolean().optional(),
+  }, ({ layout, ...options }) => svc.copyLayout(layout, options));
   tool(server, 'activate_layout', 'Activates a layout for the screen.', { layout: layoutRef }, ({ layout }) => svc.activateLayout(layout));
   tool(server, 'get_settings', 'Reads all settings (language, texts, timings, weather location, guest Wi-Fi).', {}, () => ({ values: svc.getSettings(), schema: svc.SETTINGS }));
   tool(server, 'update_settings', `Changes settings. Allowed keys: ${Object.keys(svc.SETTINGS).join(', ')}.`, {

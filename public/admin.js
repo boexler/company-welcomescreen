@@ -850,8 +850,8 @@ async function viewLayouts(id) {
       class: 'btn ghost small', type: 'button',
       onclick: async () => { if (await run(() => api(`/layouts/${layout.id}/activate`, { method: 'POST' }), t('admin.layouts.activated'))) render(); },
     }, t('admin.layouts.activate'))),
-  h('div', { class: 'row' },
-    field(t('admin.layouts.name'), h('input', { name: 'name', required: true, value: layout.name })),
+  h('div', { class: 'row top' },
+    field(t('admin.layouts.name'), h('input', { name: 'name', required: true, maxlength: 80, value: layout.name }), t('admin.layouts.nameHint')),
     field(t('admin.layouts.template'), h('select', { name: 'template' },
       Object.entries(templates).map(([key, label]) => h('option', { value: key, selected: key === layout.template }, has(`admin.layouts.templates.${key}`) ? t(`admin.layouts.templates.${key}`) : label))))),
   field(t('admin.layouts.background'), imageInput('background', layout.background_url, { cover: true, dark: true }), t('admin.layouts.backgroundHint')),
@@ -867,6 +867,15 @@ async function viewLayouts(id) {
     slider(t('admin.layouts.dim'), 'dim', layout.dim, { min: 0, max: 90, unit: ' %', hint: t('admin.layouts.dimHint') })),
   h('div', { class: 'actions' },
     h('button', { class: 'btn', type: 'submit' }, t('common.save')),
+    h('button', {
+      class: 'btn ghost', type: 'button', title: t('admin.layouts.copyHint'),
+      onclick: async () => {
+        const copy = await run(() => api(`/layouts/${layout.id}/copy`, { method: 'POST', body: {} }));
+        if (!copy) return;
+        toast(t('admin.layouts.copied', { name: copy.name }));
+        location.hash = `#/layouts/${copy.id}`;
+      },
+    }, t('admin.layouts.copy')),
     layout.active ? null : h('button', {
       class: 'btn danger', type: 'button',
       onclick: async () => {

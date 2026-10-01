@@ -104,6 +104,7 @@ export function createApiRouter() {
   api.post('/layouts', requireAdmin, images('background', 'logo'), async (req, res) => res.status(201).json(svc.createLayout(await withFiles(req, 'background', 'logo'))));
   api.patch('/layouts/:ref', requireAdmin, images('background', 'logo'), async (req, res) => res.json(svc.updateLayout(req.params.ref, await withFiles(req, 'background', 'logo'))));
   api.post('/layouts/:ref/activate', requireAdmin, (req, res) => res.json(svc.activateLayout(req.params.ref)));
+  api.post('/layouts/:ref/copy', requireAdmin, (req, res) => res.status(201).json(svc.copyLayout(req.params.ref, req.body ?? {})));
   api.delete('/layouts/:ref', requireAdmin, (req, res) => res.json(svc.deleteLayout(req.params.ref)));
 
   // --- Settings ------------------------------------------------------------

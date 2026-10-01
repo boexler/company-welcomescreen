@@ -209,6 +209,10 @@
       "none": "Noch keine Bilder im Pool."
     },
     "layouts": {
+      "nameHint": "Zum Umbenennen den Namen ändern und speichern – auch beim aktiven Layout.",
+      "copy": "Layout kopieren",
+      "copyHint": "Erstellt eine Kopie des gespeicherten Layouts mit allen Einstellungen und Bildern.",
+      "copied": "Kopie „{name}“ angelegt – den Namen kannst du oben ändern.",
       "logoSize": "Größe des eigenen Logos",
       "companyLogoSize": "Größe der Besucher-Logos",
       "companyLogoSizeHint": "Logo der Besucherfirma in den Besuchskacheln.",
@@ -324,6 +328,10 @@
     "weather": "Seite „Wetter“",
     "wifi": "Seite „WLAN“",
     "dock": "Navigation unten"
+  },
+
+  "layouts": {
+    "copyName": "{name} (Kopie)"
   },
 
   "fields": {
