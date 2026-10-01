@@ -807,8 +807,11 @@ export function deleteLayout(ref) {
 // Display (what the welcome screen shows)
 // ---------------------------------------------------------------------------
 
-/** Everything the welcome screen needs for one day. All visits of the day are shown side by side as tiles. */
-export function getDisplay({ date } = {}) {
+/**
+ * Everything the welcome screen needs for one day. All visits of the day are shown side by side as tiles.
+ * `layout` (ID or name) previews a layout other than the active one.
+ */
+export function getDisplay({ date, layout } = {}) {
   const day = parseDate(date, { fallback: today() });
   const settings = getSettings();
 
@@ -834,7 +837,7 @@ export function getDisplay({ date } = {}) {
     language: settings.language,
     boot_id: config.bootId,
     time_zone: config.timeZone,
-    layout: getActiveLayout(),
+    layout: layout != null && layout !== '' ? getLayout(layout) : getActiveLayout(),
     texts: {
       site_name: settings.site_name,
       welcome_prefix: settings.welcome_prefix,

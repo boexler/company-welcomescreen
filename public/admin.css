@@ -57,6 +57,24 @@ h3 { font-size: 15px; }
 .nav a.active { background: var(--card-2); color: var(--text); }
 
 .container { max-width: 1180px; margin: 0 auto; padding: 24px; }
+.container.wide { max-width: 1680px; }
+
+/* Layout page: active layout (a) and another layout (b) side by side; header, preview and form of both line up. */
+.layout-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.layout-compare > * { min-width: 0; }
+.cmp-a1 { grid-area: 1 / 1; align-self: stretch; }
+.cmp-b1 { grid-area: 1 / 2; align-self: stretch; }
+.cmp-a2 { grid-area: 2 / 1; }
+.cmp-b2 { grid-area: 2 / 2; }
+.cmp-a3 { grid-area: 3 / 1; }
+.cmp-b3 { grid-area: 3 / 2; }
+@media (max-width: 1000px) {
+  /* One column: first everything of the active layout, then the other one. */
+  .layout-compare { grid-template-columns: minmax(0, 1fr); }
+  .cmp-a1, .cmp-a2, .cmp-a3, .cmp-b1, .cmp-b2, .cmp-b3 { grid-area: auto; }
+  .cmp-a1 { order: 1; } .cmp-a2 { order: 2; } .cmp-a3 { order: 3; }
+  .cmp-b1 { order: 4; margin-top: 14px; } .cmp-b2 { order: 5; } .cmp-b3 { order: 6; }
+}
 
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .page-head p { margin: 4px 0 0; color: var(--muted); }
@@ -123,6 +141,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .btn:disabled { opacity: 0.5; cursor: default; }
 
 .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Stays at the bottom edge of the window while scrolling through a long form. */
+.sticky-actions { position: sticky; bottom: 0; z-index: 2; margin: 12px -18px -18px; padding: 12px 18px; background: var(--card); border-top: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); }
+.section-head { flex-wrap: wrap; }
 
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }

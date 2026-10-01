@@ -27,6 +27,7 @@
     "hosts": { "one": "Ihr Ansprechpartner: ", "other": "Ihre Ansprechpartner: " },
     "and": " und ",
     "offline": "Keine Verbindung zum Server …",
+    "previewLayout": "Vorschau: Layout „{name}“",
     "previewFor": "Vorschau für {date}",
     "wifiKicker": "Gäste-WLAN",
     "wifiTitle": "Verbinden Sie sich mit unserem WLAN",
@@ -209,6 +210,14 @@
       "none": "Noch keine Bilder im Pool."
     },
     "layouts": {
+      "saveLayout": "„{name}“ speichern",
+      "activeLayout": "Aktives Layout",
+      "activeHint": "Dieses Layout zeigt der Bildschirm gerade. Änderungen sind nach dem Speichern sofort sichtbar.",
+      "otherLayout": "Anderes Layout",
+      "otherHint": "Wähle ein Layout aus, um es anzupassen und in der Vorschau zu sehen – das aktive Layout bleibt unverändert, bis du hier „Aktivieren“ klickst.",
+      "noOther": "Es gibt noch kein weiteres Layout. Kopiere das aktive Layout („Layout kopieren“ links) oder lege hier ein neues an.",
+      "previewOf": "Vorschau „{name}“",
+      "openPreview": "Groß öffnen ↗",
       "nameHint": "Zum Umbenennen den Namen ändern und speichern – auch beim aktiven Layout.",
       "copy": "Layout kopieren",
       "copyHint": "Erstellt eine Kopie des gespeicherten Layouts mit allen Einstellungen und Bildern.",
@@ -267,9 +276,7 @@
       "created": "Layout angelegt.",
       "new": "Neues Layout",
       "newPlaceholder": "z. B. Weihnachten",
-      "preview": "Vorschau (aktives Layout)",
-      "reload": "Neu laden",
-      "all": "Alle Layouts"
+      "reload": "Neu laden"
     },
     "settings": {
       "title": "Einstellungen",

@@ -39,7 +39,7 @@ export function createApiRouter() {
 
   // --- Display -------------------------------------------------------------
   api.get('/display', (req, res) => {
-    res.set('Cache-Control', 'no-store').json(svc.getDisplay({ date: req.query.date }));
+    res.set('Cache-Control', 'no-store').json(svc.getDisplay({ date: req.query.date, layout: req.query.layout }));
   });
   api.get('/weather', async (req, res) => {
     res.set('Cache-Control', 'no-store').json(await getWeather());

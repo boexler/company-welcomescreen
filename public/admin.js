@@ -789,7 +789,7 @@ const SYSTEM_FONTS = ['Segoe UI', 'Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Tr
 
 /** Table with font, size and color per text element of the display. value() returns the typography object. */
 function typographyEditor(layout, meta) {
-  const listId = 'font-list';
+  const listId = `font-list-${layout.id}`;
   const rows = Object.keys(meta.elements).map((key) => {
     const cur = layout.typography?.[key] ?? {};
     const font = h('input', {
@@ -829,10 +829,8 @@ function typographyEditor(layout, meta) {
   };
 }
 
-async function viewLayouts(id) {
-  const [layouts, templates, typographyMeta] = await Promise.all([api('/layouts'), api('/layouts/templates'), api('/layouts/typography')]);
-  const layout = layouts.find((l) => l.id === Number(id)) ?? layouts.find((l) => l.active) ?? layouts[0];
-  const preview = previewFrame('/');
+/** Form with all parameters of one layout. */
+function layoutForm(layout, templates, typographyMeta) {
   const typography = typographyEditor(layout, typographyMeta);
 
   const form = h('form', {
@@ -844,12 +842,32 @@ async function viewLayouts(id) {
       if (await run(() => api(`/layouts/${layout.id}`, { method: 'PATCH', form: fd }), t('admin.layouts.saved'))) render();
     },
   },
+  // Actions for the layout as a whole live in the header; saving the fields stays at the bottom (always visible).
   h('div', { class: 'section-head' },
     h('h2', null, t('admin.layouts.heading', { name: layout.name })),
-    layout.active ? h('span', { class: 'pill ok' }, t('admin.layouts.active')) : h('button', {
-      class: 'btn ghost small', type: 'button',
-      onclick: async () => { if (await run(() => api(`/layouts/${layout.id}/activate`, { method: 'POST' }), t('admin.layouts.activated'))) render(); },
-    }, t('admin.layouts.activate'))),
+    h('div', { class: 'actions' },
+      layout.active ? h('span', { class: 'pill ok' }, t('admin.layouts.active')) : h('button', {
+        class: 'btn ghost small', type: 'button',
+        onclick: async () => { if (await run(() => api(`/layouts/${layout.id}/activate`, { method: 'POST' }), t('admin.layouts.activated'))) render(); },
+      }, t('admin.layouts.activate')),
+      h('button', {
+        class: 'btn ghost small', type: 'button', title: t('admin.layouts.copyHint'),
+        onclick: async () => {
+          const copy = await run(() => api(`/layouts/${layout.id}/copy`, { method: 'POST', body: {} }));
+          if (!copy) return;
+          toast(t('admin.layouts.copied', { name: copy.name }));
+          // The copy is not active, so it opens on the right.
+          if (location.hash === `#/layouts/${copy.id}`) render();
+          else location.hash = `#/layouts/${copy.id}`;
+        },
+      }, t('admin.layouts.copy')),
+      layout.active ? null : h('button', {
+        class: 'btn danger small', type: 'button',
+        onclick: async () => {
+          if (!confirmDelete(t('admin.layouts.deleteWhat', { name: layout.name }))) return;
+          if (await run(() => api(`/layouts/${layout.id}`, { method: 'DELETE' }), t('admin.layouts.deleted'))) { location.hash = '#/layouts'; render(); }
+        },
+      }, t('common.delete')))),
   h('div', { class: 'row top' },
     field(t('admin.layouts.name'), h('input', { name: 'name', required: true, maxlength: 80, value: layout.name }), t('admin.layouts.nameHint')),
     field(t('admin.layouts.template'), h('select', { name: 'template' },
@@ -865,27 +883,37 @@ async function viewLayouts(id) {
     field(t('admin.layouts.accent'), h('input', { type: 'color', name: 'accent_color', value: layout.accent_color })),
     slider(t('admin.layouts.blur'), 'blur', layout.blur, { min: 0, max: 60, unit: 'px' }),
     slider(t('admin.layouts.dim'), 'dim', layout.dim, { min: 0, max: 90, unit: ' %', hint: t('admin.layouts.dimHint') })),
-  h('div', { class: 'actions' },
-    h('button', { class: 'btn', type: 'submit' }, t('common.save')),
-    h('button', {
-      class: 'btn ghost', type: 'button', title: t('admin.layouts.copyHint'),
-      onclick: async () => {
-        const copy = await run(() => api(`/layouts/${layout.id}/copy`, { method: 'POST', body: {} }));
-        if (!copy) return;
-        toast(t('admin.layouts.copied', { name: copy.name }));
-        location.hash = `#/layouts/${copy.id}`;
-      },
-    }, t('admin.layouts.copy')),
-    layout.active ? null : h('button', {
-      class: 'btn danger', type: 'button',
-      onclick: async () => {
-        if (!confirmDelete(t('admin.layouts.deleteWhat', { name: layout.name }))) return;
-        if (await run(() => api(`/layouts/${layout.id}`, { method: 'DELETE' }), t('admin.layouts.deleted'))) { location.hash = '#/layouts'; render(); }
-      },
-    }, t('common.delete'))));
+  h('div', { class: 'actions sticky-actions' },
+    h('button', { class: 'btn', type: 'submit' }, t('admin.layouts.saveLayout', { name: layout.name }))));
   // Needs the form to watch the background image input.
   form.insertBefore(textColorField(layout, form), form.querySelector(':scope > .actions'));
   form.insertBefore(typography.el, form.querySelector(':scope > .actions'));
+  return form;
+}
+
+/** Card with the live preview of a layout (the display itself, scaled down). */
+function layoutPreview(layout) {
+  const preview = previewFrame(layout.active ? '/' : `/?layout=${layout.id}`);
+  return h('div', { class: 'card pad stack' },
+    h('div', { class: 'section-head' },
+      h('h3', null, t('admin.layouts.previewOf', { name: layout.name })),
+      h('div', { class: 'actions' },
+        h('a', { class: 'btn ghost small', href: layout.active ? '/' : `/?layout=${layout.id}`, target: '_blank', rel: 'noopener' }, t('admin.layouts.openPreview')),
+        h('button', { class: 'btn ghost small', type: 'button', onclick: preview.reload }, t('admin.layouts.reload')))),
+    preview.frame);
+}
+
+/**
+ * Left: the active layout. Right: one of the other layouts, chosen from the list – it can be adjusted and previewed
+ * without touching the active one. Each side shows the preview above the parameters.
+ */
+async function viewLayouts(id) {
+  const [layouts, templates, typographyMeta] = await Promise.all([api('/layouts'), api('/layouts/templates'), api('/layouts/typography')]);
+  const active = layouts.find((l) => l.active) ?? layouts[0];
+  const others = layouts.filter((l) => l.id !== active.id);
+  // The other layout from the address, else the one chosen last, else the first one.
+  const other = others.find((l) => l.id === Number(id)) ?? others.find((l) => l.id === Number(storage.get('otherLayout'))) ?? others[0];
+  if (other) storage.set('otherLayout', String(other.id));
 
   const newForm = h('form', {
     class: 'row',
@@ -895,22 +923,30 @@ async function viewLayouts(id) {
       if (created) location.hash = `#/layouts/${created.id}`;
     },
   },
-  field(t('admin.layouts.new'), h('input', { name: 'name', required: true, placeholder: t('admin.layouts.newPlaceholder') })),
+  field(t('admin.layouts.new'), h('input', { name: 'name', required: true, maxlength: 80, placeholder: t('admin.layouts.newPlaceholder') })),
   h('button', { class: 'btn ghost', type: 'submit' }, t('common.create')));
+
+  const cell = (column, row, el) => { el.classList.add(`cmp-${column}${row}`); return el; };
 
   return h('div', null,
     h('div', { class: 'page-head' },
       h('div', null, h('h1', null, t('admin.layouts.title')), h('p', null, t('admin.layouts.intro')))),
-    h('div', { class: 'grid grid-2' },
-      form,
-      h('div', { class: 'stack' },
-        h('div', { class: 'card pad stack' },
-          h('div', { class: 'section-head' }, h('h2', null, t('admin.layouts.preview')), h('button', { class: 'btn ghost small', type: 'button', onclick: preview.reload }, t('admin.layouts.reload'))),
-          preview.frame),
-        h('div', { class: 'card pad stack' },
-          h('h2', null, t('admin.layouts.all')),
-          h('div', { class: 'chips' }, layouts.map((l) => h('a', { class: `pill ${l.active ? 'ok' : l.id === layout.id ? 'accent' : ''}`, href: `#/layouts/${l.id}` }, l.name, l.active ? ' ✓' : ''))),
-          newForm))));
+    h('div', { class: 'layout-compare' },
+      cell('a', 1, h('div', { class: 'card pad stack' },
+        h('div', { class: 'section-head' }, h('h2', null, t('admin.layouts.activeLayout')), h('span', { class: 'pill ok' }, `${active.name} ✓`)),
+        h('p', { class: 'muted small', style: { margin: 0 } }, t('admin.layouts.activeHint')))),
+      cell('a', 2, layoutPreview(active)),
+      cell('a', 3, layoutForm(active, templates, typographyMeta)),
+
+      cell('b', 1, h('div', { class: 'card pad stack' },
+        h('h2', null, t('admin.layouts.otherLayout')),
+        others.length
+          ? h('div', { class: 'chips' }, others.map((l) => h('a', { class: `pill ${l.id === other.id ? 'accent' : ''}`, href: `#/layouts/${l.id}` }, l.name)))
+          : null,
+        h('p', { class: 'muted small', style: { margin: 0 } }, others.length ? t('admin.layouts.otherHint') : t('admin.layouts.noOther')),
+        newForm)),
+      other ? cell('b', 2, layoutPreview(other)) : null,
+      other ? cell('b', 3, layoutForm(other, templates, typographyMeta)) : null));
 }
 
 // ---------------------------------------------------------------------------
@@ -1022,6 +1058,7 @@ async function viewSettings() {
 
 async function render() {
   const [, page = 'visits', id] = location.hash.split('/');
+  main.classList.toggle('wide', page === 'layouts');
   for (const a of document.querySelectorAll('[data-nav]')) {
     a.classList.toggle('active', a.dataset.nav === page || (page === 'company' && a.dataset.nav === 'companies'));
   }

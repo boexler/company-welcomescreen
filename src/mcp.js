@@ -50,7 +50,8 @@ function buildServer(baseUrl) {
   }));
   tool(server, 'get_display', 'Shows what the welcome screen displays on a given day (one tile per visit incl. employees, layout, Wi-Fi, weather location).', {
     date: date.optional().describe('Default: today'),
-  }, ({ date: d }) => svc.getDisplay({ date: d }));
+    layout: layoutRef.optional().describe('Preview with this layout instead of the active one'),
+  }, ({ date: d, layout }) => svc.getDisplay({ date: d, layout }));
 
   // Companies
   tool(server, 'list_companies', 'Lists all visiting companies with their number of employees and next visit.', {}, () => svc.listCompanies());

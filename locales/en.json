@@ -27,6 +27,7 @@
     "hosts": { "one": "Your contact: ", "other": "Your contacts: " },
     "and": " and ",
     "offline": "No connection to the server …",
+    "previewLayout": "Preview: layout “{name}”",
     "previewFor": "Preview for {date}",
     "wifiKicker": "Guest Wi-Fi",
     "wifiTitle": "Connect to our Wi-Fi",
@@ -209,6 +210,14 @@
       "none": "No pictures in the pool yet."
     },
     "layouts": {
+      "saveLayout": "Save “{name}”",
+      "activeLayout": "Active layout",
+      "activeHint": "This is the layout the screen shows right now. Changes are visible as soon as they are saved.",
+      "otherLayout": "Another layout",
+      "otherHint": "Choose a layout to adjust and preview it – the active layout stays untouched until you click “Activate” here.",
+      "noOther": "There is no other layout yet. Copy the active layout (“Copy layout” on the left) or create a new one here.",
+      "previewOf": "Preview “{name}”",
+      "openPreview": "Open large ↗",
       "nameHint": "To rename, change the name and save – also for the active layout.",
       "copy": "Copy layout",
       "copyHint": "Creates a copy of the saved layout with all its settings and images.",
@@ -267,9 +276,7 @@
       "created": "Layout created.",
       "new": "New layout",
       "newPlaceholder": "e.g. Christmas",
-      "preview": "Preview (active layout)",
-      "reload": "Reload",
-      "all": "All layouts"
+      "reload": "Reload"
     },
     "settings": {
       "title": "Settings",

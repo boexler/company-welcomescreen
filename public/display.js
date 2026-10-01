@@ -4,6 +4,8 @@ import { t, has, setLanguage, locale } from './i18n.js';
 
 const params = new URLSearchParams(location.search);
 const previewDate = params.get('date');
+// Preview of a layout other than the active one (used by the admin area).
+const previewLayout = params.get('layout');
 
 const REFRESH_MS = 30_000;
 const WEATHER_REFRESH_MS = 10 * 60_000;
@@ -105,7 +107,11 @@ async function getJson(url) {
 
 async function loadDisplay() {
   try {
-    const data = await getJson(`/api/display${previewDate ? `?date=${encodeURIComponent(previewDate)}` : ''}`);
+    const query = new URLSearchParams();
+    if (previewDate) query.set('date', previewDate);
+    if (previewLayout) query.set('layout', previewLayout);
+    const qs = query.toString();
+    const data = await getJson(`/api/display${qs ? `?${qs}` : ''}`);
     $('offline').hidden = true;
     // Server was restarted/updated → reload to get the new frontend.
     if (state.data && state.data.boot_id !== data.boot_id) {
@@ -125,6 +131,7 @@ async function loadDisplay() {
       if (prev) renderWeather();
     }
     applyLayout(data.layout);
+    if (previewLayout) renderPreviewBadge();
     applyNav(data);
     if (languageChanged || !prev || JSON.stringify(prev.visits) !== JSON.stringify(data.visits) || JSON.stringify(prev.texts) !== JSON.stringify(data.texts)) {
       renderHome();
@@ -445,12 +452,17 @@ document.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------------------
 
 function renderPreviewBadge() {
-  if (!previewDate) return;
+  const parts = [];
+  if (previewDate) {
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(previewDate)
+      ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${previewDate}T12:00:00Z`))
+      : previewDate;
+    parts.push(t('display.previewFor', { date: day }));
+  }
+  if (previewLayout && state.data) parts.push(t('display.previewLayout', { name: state.data.layout.name }));
+  if (!parts.length) return;
   const badge = $('preview-badge');
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(previewDate)
-    ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${previewDate}T12:00:00Z`))
-    : previewDate;
-  badge.textContent = t('display.previewFor', { date: day });
+  badge.textContent = parts.join(' · ');
   badge.hidden = false;
 }
 
