@@ -207,7 +207,9 @@
       "none": "No pictures in the pool yet."
     },
     "layouts": {
-      "logoSize": "Logo size",
+      "logoSize": "Size of your own logo",
+      "companyLogoSize": "Size of the visitors' logos",
+      "companyLogoSizeHint": "Logo of the visiting company in the visit tiles.",
       "tileGap": "Gap between visits",
       "footerGap": "Gap to the navigation at the bottom",
       "gapHint": "Pixels at Full HD, scaled with the screen size.",
@@ -326,7 +328,8 @@
     "avatar": "Picture",
     "avatarColor": "Color of the initials",
     "image": "Picture",
-    "logoSize": "Logo size",
+    "logoSize": "Size of your own logo",
+    "companyLogoSize": "Size of the visitors' logos",
     "tileGap": "Gap between visits",
     "footerGap": "Gap to the navigation",
     "name": "Name",

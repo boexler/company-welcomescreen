@@ -207,7 +207,9 @@
       "none": "Noch keine Bilder im Pool."
     },
     "layouts": {
-      "logoSize": "Größe des Logos",
+      "logoSize": "Größe des eigenen Logos",
+      "companyLogoSize": "Größe der Besucher-Logos",
+      "companyLogoSizeHint": "Logo der Besucherfirma in den Besuchskacheln.",
       "tileGap": "Abstand zwischen den Besuchen",
       "footerGap": "Abstand zur Navigation unten",
       "gapHint": "Pixel bei Full HD, skaliert mit der Bildschirmgröße.",
@@ -326,7 +328,8 @@
     "avatar": "Bild",
     "avatarColor": "Farbe der Initialen",
     "image": "Bild",
-    "logoSize": "Größe des Logos",
+    "logoSize": "Größe des eigenen Logos",
+    "companyLogoSize": "Größe der Besucher-Logos",
     "tileGap": "Abstand zwischen den Besuchen",
     "footerGap": "Abstand zur Navigation",
     "name": "Name",

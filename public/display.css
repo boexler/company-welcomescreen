@@ -299,11 +299,13 @@ button { font: inherit; color: inherit; }
   background: var(--accent);
 }
 
+/* zoom scales the logo together with its white card (layout setting); it never gets wider than the tile. */
 .company-logo {
   display: block;
   margin: 1.6rem auto 0.4rem;
-  max-width: min(32rem, 70%);
+  max-width: min(32rem, calc(70% * var(--company-logo-size, 1)), 100%);
   max-height: 9rem;
+  zoom: var(--company-logo-size, 1);
   object-fit: contain;
   padding: 1rem 1.6rem;
   border-radius: 1.2rem;

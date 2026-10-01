@@ -672,10 +672,11 @@ function presentLayout(row, activeId = getSettings().active_layout_id) {
 }
 
 /** Layout values validated the same way on create and update; undefined = not given. */
-function layoutFields({ logo_size, tile_gap, footer_gap, typography }) {
+function layoutFields({ logo_size, company_logo_size, tile_gap, footer_gap, typography }) {
   const typo = cleanTypography(typography);
   return {
     logo_size: cleanInt(logo_size, { field: msg('fields.logoSize'), min: 20, max: 400 }),
+    company_logo_size: cleanInt(company_logo_size, { field: msg('fields.companyLogoSize'), min: 30, max: 300 }),
     tile_gap: cleanInt(tile_gap, { field: msg('fields.tileGap'), min: 0, max: 300 }),
     footer_gap: cleanInt(footer_gap, { field: msg('fields.footerGap'), min: 0, max: 300 }),
     typography: typo === undefined ? undefined : JSON.stringify(typo),
@@ -716,13 +717,13 @@ export function createLayout({ name, template, background, logo, accent_color, t
     const f = layoutFields(rest);
     const id = conflictOnUnique(
       () => db.prepare(`INSERT INTO layouts (name, template, background_image_id, logo_image_id, accent_color, text_color, blur, dim,
-                        logo_size, tile_gap, footer_gap, typography) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                        logo_size, company_logo_size, tile_gap, footer_gap, typography) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(cleanName, cleanTemplate(template) ?? 'glass', storeImage(background), storeImage(logo),
           cleanColor(accent_color) ?? '#4f8cff',
           cleanColor(text_color, msg('fields.textColor')) ?? '#ffffff',
           cleanInt(blur, { field: msg('fields.blur'), min: 0, max: 60 }) ?? 24,
           cleanInt(dim, { field: msg('fields.dim'), min: 0, max: 90 }) ?? 25,
-          f.logo_size ?? 100, f.tile_gap ?? 32, f.footer_gap ?? 32, f.typography ?? '{}')
+          f.logo_size ?? 100, f.company_logo_size ?? 100, f.tile_gap ?? 32, f.footer_gap ?? 32, f.typography ?? '{}')
         .lastInsertRowid,
       'errors.layoutExists', { name: cleanName },
     );
@@ -739,7 +740,7 @@ export function updateLayout(ref, { name, template, background, remove_backgroun
     const f = layoutFields(rest);
     conflictOnUnique(
       () => db.prepare(`UPDATE layouts SET name = ?, template = ?, background_image_id = ?, logo_image_id = ?, accent_color = ?, text_color = ?, blur = ?, dim = ?,
-                        logo_size = ?, tile_gap = ?, footer_gap = ?, typography = ?, updated_at = datetime('now') WHERE id = ?`)
+                        logo_size = ?, company_logo_size = ?, tile_gap = ?, footer_gap = ?, typography = ?, updated_at = datetime('now') WHERE id = ?`)
         .run(newName, cleanTemplate(template) ?? cur.template,
           replaceImage(cur.background_image_id, background, truthy(remove_background)),
           replaceImage(cur.logo_image_id, logo, truthy(remove_logo)),
@@ -747,7 +748,7 @@ export function updateLayout(ref, { name, template, background, remove_backgroun
           cleanColor(text_color, msg('fields.textColor')) ?? cur.text_color,
           cleanInt(blur, { field: msg('fields.blur'), min: 0, max: 60 }) ?? cur.blur,
           cleanInt(dim, { field: msg('fields.dim'), min: 0, max: 90 }) ?? cur.dim,
-          f.logo_size ?? cur.logo_size, f.tile_gap ?? cur.tile_gap, f.footer_gap ?? cur.footer_gap, f.typography ?? cur.typography,
+          f.logo_size ?? cur.logo_size, f.company_logo_size ?? cur.company_logo_size, f.tile_gap ?? cur.tile_gap, f.footer_gap ?? cur.footer_gap, f.typography ?? cur.typography,
           id),
       'errors.layoutExists', { name: newName },
     );

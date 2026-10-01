@@ -179,6 +179,7 @@ function applyLayout(layout) {
   root.setProperty('--dim', String(layout.dim / 100));
   root.setProperty('--base-text', layout.text_color);
   root.setProperty('--logo-size', String(layout.logo_size / 100));
+  root.setProperty('--company-logo-size', String(layout.company_logo_size / 100));
   root.setProperty('--tile-gap', String(layout.tile_gap));
   root.setProperty('--footer-gap', String(layout.footer_gap));
   applyTypography(layout.typography);

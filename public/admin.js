@@ -856,6 +856,7 @@ async function viewLayouts(id) {
   field(t('admin.layouts.logo'), imageInput('logo', layout.logo_url, { dark: true }), t('admin.layouts.logoHint')),
   h('div', { class: 'row top' },
     slider(t('admin.layouts.logoSize'), 'logo_size', layout.logo_size, { min: 20, max: 400, step: 5, unit: ' %' }),
+    slider(t('admin.layouts.companyLogoSize'), 'company_logo_size', layout.company_logo_size, { min: 30, max: 300, step: 5, unit: ' %', hint: t('admin.layouts.companyLogoSizeHint') }),
     slider(t('admin.layouts.tileGap'), 'tile_gap', layout.tile_gap, { min: 0, max: 200, unit: ' px', hint: t('admin.layouts.gapHint') }),
     slider(t('admin.layouts.footerGap'), 'footer_gap', layout.footer_gap, { min: 0, max: 200, unit: ' px', hint: t('admin.layouts.footerGapHint') })),
   h('div', { class: 'row top' },

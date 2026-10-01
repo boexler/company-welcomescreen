@@ -144,7 +144,8 @@ function buildServer(baseUrl) {
     text_color: z.string().optional().describe('#RRGGBB – choose a dark color (e.g. #1e2530) for bright background images; the glass then turns bright automatically'),
     blur: z.number().int().min(0).max(60).optional().describe('Strength of the glass effect in px'),
     dim: z.number().int().min(0).max(90).optional().describe('Softening of the background in % (darkens with light text, brightens with dark text)'),
-    logo_size: z.number().int().min(20).max(400).optional().describe('Size of the logo top left in % (100 = default)'),
+    logo_size: z.number().int().min(20).max(400).optional().describe('Size of the own logo top left in % (100 = default)'),
+    company_logo_size: z.number().int().min(30).max(300).optional().describe('Size of the logos of the visiting companies in the visit tiles in % (100 = default)'),
     tile_gap: z.number().int().min(0).max(300).optional().describe('Gap between the visit tiles (px at Full HD, scales with the screen)'),
     footer_gap: z.number().int().min(0).max(300).optional().describe('Gap between the content and the navigation at the bottom (px at Full HD)'),
     typography: z.record(z.string(), z.object({
