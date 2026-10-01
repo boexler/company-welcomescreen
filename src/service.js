@@ -615,6 +615,7 @@ export const TEXT_ELEMENTS = {
   idle_title: 'No visit: headline',
   idle_site: 'No visit: own company name',
   idle_text: 'No visit: text',
+  highlight: 'Highlighted text (*…*) in free texts; size relative to the surrounding text',
   weather: 'Weather page',
   wifi: 'Wi-Fi page',
   dock: 'Navigation at the bottom',

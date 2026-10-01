@@ -1,5 +1,5 @@
 // Welcome Screen admin – single page app (no build step).
-import { h, append, initials, hue, contrast, DARK_TEXT } from './shared.js';
+import { h, append, initials, hue, contrast, plain, rich, DARK_TEXT } from './shared.js';
 import { t, tNodes, has, setLanguage, language, locale } from './i18n.js';
 
 const main = document.getElementById('app');
@@ -129,6 +129,50 @@ function formData(form) {
   return fd;
 }
 
+/** Shows highlighted text ("*text*") in the admin area like the active layout does: its highlight or accent color. */
+async function applyHighlightStyle() {
+  const active = (await api('/layouts')).find((l) => l.active);
+  if (!active) return;
+  const style = active.typography?.highlight ?? {};
+  const root = document.documentElement.style;
+  root.setProperty('--hl-color', style.color ?? active.accent_color);
+  if (style.font) root.setProperty('--hl-font', `"${style.font}", "Segoe UI", system-ui, sans-serif`);
+  else root.removeProperty('--hl-font');
+}
+
+/** Explains the text markup with rendered examples. */
+function markupHelp() {
+  const word = t('admin.markup.word');
+  const example = (code, label) => h('div', { class: 'markup-example' },
+    h('code', null, code),
+    h('span', { class: 'faint', 'aria-hidden': 'true' }, '→'),
+    h('span', { class: 'markup-result' }, rich(code)),
+    label ? h('span', { class: 'faint small' }, label) : null);
+  return h('div', { class: 'markup-help' },
+    h('strong', null, t('admin.markup.title')),
+    h('div', { class: 'markup-examples' },
+      example(`*${word}*`, t('admin.markup.highlight')),
+      example(`**${word}**`, t('admin.markup.bold')),
+      example(`***${word}***`, t('admin.markup.both'))),
+    h('div', { class: 'markup-examples' }, example('Bright***line*** Systems', t('admin.markup.example'))),
+    h('small', { class: 'faint' }, t('admin.markup.note')));
+}
+
+/** A text field whose content may contain markup: shows a live preview below the input as soon as it does. */
+function markupField(label, input, hint) {
+  const preview = h('div', { class: 'markup-preview', hidden: true });
+  const update = () => {
+    preview.hidden = !input.value.includes('*');
+    preview.replaceChildren();
+    if (!preview.hidden) append(preview, [h('span', { class: 'faint small' }, `${t('common.preview')}: `), rich(input.value)]);
+  };
+  input.addEventListener('input', update);
+  update();
+  const el = field(label, input, hint);
+  el.append(preview);
+  return el;
+}
+
 function confirmDelete(what) {
   return window.confirm(t('common.confirmDelete', { what }));
 }
@@ -204,7 +248,7 @@ function visitRow(v) {
     logoBox({ name: v.company_name, logo_url: v.company_logo_url }, 'visit-logo'),
     h('div', { class: 'grow' },
       h('div', null, h('strong', null, v.company_name), ' ', h('span', { class: 'pill' }, dateRange(v))),
-      v.headline || v.message ? h('div', { class: 'small muted' }, [v.headline, v.message].filter(Boolean).join(' · ')) : null,
+      v.headline || v.message ? h('div', { class: 'small muted' }, [v.headline, v.message].filter(Boolean).map(plain).join(' · ')) : null,
       h('div', { class: 'chips' },
         v.employees.length
           ? v.employees.map((e) => h('span', { class: 'pill' }, e.name))
@@ -416,8 +460,9 @@ function visitForm(companies, editing) {
     picker.el,
     h('label', { class: 'check' }, showAvatars, t('admin.visits.showAvatars')),
     h('small', null, t('admin.visits.showAvatarsHint'))),
-  h('div', { class: 'row' }, field(t('admin.visits.headline'), headline), h('div', { class: 'field' }, h('span', null, t('admin.visits.hostsLabel')), hosts.el)),
-  field(t('admin.visits.message'), message),
+  h('div', { class: 'row top' }, markupField(t('admin.visits.headline'), headline), h('div', { class: 'field' }, h('span', null, t('admin.visits.hostsLabel')), hosts.el)),
+  markupField(t('admin.visits.message'), message),
+  markupHelp(),
   h('div', { class: 'actions' },
     h('button', { class: 'btn', type: 'submit' }, editing ? t('common.save') : t('admin.visits.schedule')),
     editing ? h('a', { class: 'btn ghost', href: '#/visits' }, t('common.cancel')) : null));
@@ -752,9 +797,9 @@ function typographyEditor(layout, meta) {
     if (cur.font) font.style.fontFamily = `"${cur.font}", sans-serif`;
     const size = h('input', { type: 'number', min: 25, max: 400, step: 5, value: cur.size ?? '', placeholder: '100', 'aria-label': t('admin.layouts.size') });
     const colorOn = h('input', { type: 'checkbox', checked: Boolean(cur.color), 'aria-label': t('admin.layouts.ownColor') });
-    const color = h('input', { type: 'color', value: cur.color ?? layout.text_color, 'aria-label': t('admin.layouts.color'), oninput: () => { colorOn.checked = true; } });
+    const color = h('input', { type: 'color', value: cur.color ?? (key === 'highlight' ? layout.accent_color : layout.text_color), 'aria-label': t('admin.layouts.color'), oninput: () => { colorOn.checked = true; } });
     const tr = h('tr', null,
-      h('th', { scope: 'row' }, t(`textElements.${key}`), ['weather', 'wifi', 'dock', 'base'].includes(key) ? h('div', { class: 'faint small' }, t(`admin.layouts.sizeHint.${key}`)) : null),
+      h('th', { scope: 'row' }, t(`textElements.${key}`), ['weather', 'wifi', 'dock', 'base', 'highlight'].includes(key) ? h('div', { class: 'faint small' }, t(`admin.layouts.sizeHint.${key}`)) : null),
       h('td', null, font),
       h('td', null, h('div', { class: 'size-cell' }, size, h('span', { class: 'faint' }, '%'))),
       h('td', null, key === 'base' ? h('span', { class: 'faint small' }, t('admin.layouts.baseColorHint')) : h('div', { class: 'actions' }, colorOn, color)));
@@ -875,11 +920,13 @@ async function viewSettings() {
     if (def.type === 'bool') return h('label', { class: 'check' }, h('input', { type: 'checkbox', name: key, checked: values[key] }), label);
     if (def.type === 'enum') return field(label, h('select', { name: key }, def.values.map((v) => h('option', { value: v, selected: v === values[key] }, optionLabel(key, v)))));
     if (def.type === 'int') return field(label, h('input', { type: 'number', name: key, min: def.min, max: def.max, value: values[key], required: true, ...attrs }));
-    if (key === 'idle_text' || key === 'wifi_note') return field(label, h('textarea', { name: key }, values[key] ?? ''));
+    if (key === 'idle_text') return markupField(label, h('textarea', { name: key }, values[key] ?? ''));
+    if (key === 'wifi_note') return field(label, h('textarea', { name: key }, values[key] ?? ''));
     // Empty greeting texts use the default text of the selected language.
     if (key === 'welcome_prefix' || key === 'idle_title') {
-      return field(label, h('input', { name: key, value: values[key] ?? '', placeholder: t('display.welcome'), ...attrs }), t('admin.settings.defaultTextHint'));
+      return markupField(label, h('input', { name: key, value: values[key] ?? '', placeholder: t('display.welcome'), ...attrs }), t('admin.settings.defaultTextHint'));
     }
+    if (key === 'site_name') return markupField(label, h('input', { name: key, value: values[key] ?? '', ...attrs }));
     return field(label, h('input', { name: key, value: values[key] ?? '', ...attrs }));
   };
 
@@ -945,7 +992,9 @@ async function viewSettings() {
     h('div', { class: 'grid grid-2' },
       h('div', { class: 'stack' },
         settingsForm(t('admin.settings.general'), ['language']),
-        settingsForm(t('admin.settings.display'), ['site_name', 'welcome_prefix', 'idle_title', 'idle_text', 'home_timeout_seconds', 'show_employee_titles'])),
+        settingsForm(t('admin.settings.display'), ['site_name', 'welcome_prefix', 'idle_title', 'idle_text', 'home_timeout_seconds', 'show_employee_titles'], {
+          before: markupHelp(),
+        })),
       h('div', { class: 'stack' }, weatherForm, wifiForm)),
     h('section', { class: 'section card pad stack' },
       h('h2', null, t('admin.settings.api')),
@@ -971,6 +1020,7 @@ async function render() {
     return;
   }
 
+  await applyHighlightStyle().catch(() => {});
   try {
     const views = {
       visits: () => viewVisits(id),

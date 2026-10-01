@@ -78,6 +78,15 @@
   },
 
   "admin": {
+    "markup": {
+      "title": "Texte hervorheben",
+      "word": "Text",
+      "highlight": "hervorgehoben",
+      "bold": "fett",
+      "both": "fett und hervorgehoben",
+      "example": "Beispiel",
+      "note": "Gilt für die Texte dieser Felder. Farbe, Schrift und Größe der Hervorhebung stellst du unter „Layout“ in der Zeile „Hervorgehobener Text“ ein (Standard: Akzentfarbe). Ein echtes Sternchen schreibst du als \\*."
+    },
     "nav": {
       "visits": "Besuche",
       "companies": "Firmen",
@@ -214,6 +223,7 @@
       "baseColorHint": "siehe Schriftfarbe",
       "resetTypography": "Alle auf Standard zurücksetzen",
       "sizeHint": {
+        "highlight": "Größe relativ zum umgebenden Text; Standardfarbe: Akzentfarbe",
         "base": "Größe skaliert alles",
         "weather": "Größe skaliert die ganze Karte",
         "wifi": "Größe skaliert die ganze Karte",
@@ -306,6 +316,7 @@
     "idle_title": "Ohne Besuch: Überschrift",
     "idle_site": "Ohne Besuch: eigener Firmenname",
     "idle_text": "Ohne Besuch: Text",
+    "highlight": "Hervorgehobener Text (*…*)",
     "weather": "Seite „Wetter“",
     "wifi": "Seite „WLAN“",
     "dock": "Navigation unten"

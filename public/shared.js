@@ -35,6 +35,42 @@ export function hue(str) {
   return x;
 }
 
+// --- Text markup ---------------------------------------------------------------
+// Free texts of the display (greetings, headline, additional text) may emphasize parts:
+//   *text*       highlighted – looks as defined in the layout (text element "highlight", default: accent color)
+//   **text**     bold
+//   ***text***   bold and highlighted
+// A backslash keeps an asterisk literal (\*). Everything is built as DOM nodes – no HTML is interpreted.
+
+const MARKUP = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*/g;
+// Escaped characters are swapped for private-use characters while parsing.
+const SHIELD_BASE = 0xe000;
+const shield = (text) => String(text ?? '').replace(/\\([*\\])/g, (m, c) => String.fromCharCode(SHIELD_BASE + c.charCodeAt(0)));
+const unshield = (text) => [...text].map((c) => {
+  const code = c.charCodeAt(0);
+  return code >= SHIELD_BASE && code < SHIELD_BASE + 0x100 ? String.fromCharCode(code - SHIELD_BASE) : c;
+}).join('');
+
+function markupNodes(text) {
+  const nodes = [];
+  let last = 0;
+  for (const m of text.matchAll(MARKUP)) {
+    if (m.index > last) nodes.push(unshield(text.slice(last, m.index)));
+    if (m[1] != null) nodes.push(h('b', { class: 'hl' }, markupNodes(m[1])));
+    else if (m[2] != null) nodes.push(h('b', null, markupNodes(m[2])));
+    else nodes.push(h('span', { class: 'hl' }, markupNodes(m[3])));
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) nodes.push(unshield(text.slice(last)));
+  return nodes;
+}
+
+/** Text with markup as an array of strings and nodes for h(). */
+export const rich = (text) => markupNodes(shield(text));
+
+/** The same text without markup (for lists in the admin area). */
+export const plain = (text) => rich(text).map((n) => (n instanceof Node ? n.textContent : n)).join('');
+
 // --- Colors (#rrggbb) --------------------------------------------------------
 
 const channels = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));

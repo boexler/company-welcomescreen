@@ -78,6 +78,15 @@
   },
 
   "admin": {
+    "markup": {
+      "title": "Emphasizing text",
+      "word": "text",
+      "highlight": "highlighted",
+      "bold": "bold",
+      "both": "bold and highlighted",
+      "example": "example",
+      "note": "Applies to the texts of these fields. Color, font and size of the highlight are set under “Layout” in the row “Highlighted text” (default: accent color). Write a literal asterisk as \\*."
+    },
     "nav": {
       "visits": "Visits",
       "companies": "Companies",
@@ -214,6 +223,7 @@
       "baseColorHint": "see text color",
       "resetTypography": "Reset all to default",
       "sizeHint": {
+        "highlight": "size relative to the surrounding text; default color: accent color",
         "base": "size scales everything",
         "weather": "size scales the whole card",
         "wifi": "size scales the whole card",
@@ -306,6 +316,7 @@
     "idle_title": "No visit: headline",
     "idle_site": "No visit: own company name",
     "idle_text": "No visit: text",
+    "highlight": "Highlighted text (*…*)",
     "weather": "“Weather” page",
     "wifi": "“Wi-Fi” page",
     "dock": "Navigation at the bottom"

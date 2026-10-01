@@ -231,6 +231,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   pointer-events: none;
 }
 
+/* Text markup: highlighted text looks like on the display (color from the active layout, see applyHighlightStyle). */
+.hl { color: var(--hl-color, var(--accent)); font-family: var(--hl-font, inherit); }
+.markup-help { padding: 12px 14px; border: 1px solid var(--border-strong); border-left: 4px solid var(--hl-color, var(--accent)); border-radius: 8px; background: #111a24; }
+.markup-examples { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 8px; }
+.markup-example { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.markup-example code, .markup-result { white-space: nowrap; }
+.markup-example code { font-size: 14px; background: var(--card-2); color: var(--text); }
+.markup-result { font-size: 17px; }
+.markup-help small { display: block; margin-top: 10px; }
+.markup-preview { padding: 6px 10px; border: 1px dashed var(--border-strong); border-radius: 8px; background: #111a24; font-size: 16px; }
+
 .geo-results { display: flex; flex-direction: column; gap: 4px; }
 .geo-results button { text-align: left; }
 

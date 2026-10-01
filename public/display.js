@@ -1,5 +1,5 @@
 // Welcome screen (kiosk display) – no build step.
-import { h, initials, hue, isDarkText, readableOn } from './shared.js';
+import { h, initials, hue, isDarkText, readableOn, rich } from './shared.js';
 import { t, has, setLanguage, locale } from './i18n.js';
 
 const params = new URLSearchParams(location.search);
@@ -279,10 +279,10 @@ function visitTile(visit, index) {
   const people = visit.employees;
   const section = (name, content) => h('div', { class: `sec sec-${name}` }, content);
   return h('article', { class: `card glass tile stagger ${visit.company.logo_url ? 'has-logo' : ''}`, style: `--i: ${index}` },
-    section('kicker', h('div', { class: 'kicker' }, visit.headline || t('display.welcome'))),
+    section('kicker', h('div', { class: 'kicker' }, rich(visit.headline || t('display.welcome')))),
     section('logo', visit.company.logo_url ? h('img', { class: 'company-logo', src: visit.company.logo_url, alt: '' }) : null),
     section('name', h('h1', { class: 'company-name' }, visit.company.name)),
-    section('message', visit.message ? h('p', { class: 'message' }, visit.message) : null),
+    section('message', visit.message ? h('p', { class: 'message' }, rich(visit.message)) : null),
     section('people', people.length
       ? h('div', { class: `people stagger ${visit.show_avatars ? '' : 'no-avatars'} ${people.length > 6 ? 'compact' : ''}` },
         people.map((p, i) => h('div', { class: 'person', style: { animationDelay: `${0.25 + index * 0.12 + i * 0.08}s` } },
@@ -306,9 +306,9 @@ function hostLine(hosts) {
 function idleCard(texts) {
   return h('div', { class: 'card glass idle' },
     h('div', { class: 'stagger' },
-      h('h1', { class: 'company-name' }, texts.idle_title || t('display.welcome')),
-      texts.site_name ? h('div', { class: 'site' }, texts.site_name) : null,
-      texts.idle_text ? h('p', { class: 'message' }, texts.idle_text) : null));
+      h('h1', { class: 'company-name' }, rich(texts.idle_title || t('display.welcome'))),
+      texts.site_name ? h('div', { class: 'site' }, rich(texts.site_name)) : null,
+      texts.idle_text ? h('p', { class: 'message' }, rich(texts.idle_text)) : null));
 }
 
 /** Columns for n tiles: side by side on landscape screens (two rows from 5 visits), at most two on portrait screens. */

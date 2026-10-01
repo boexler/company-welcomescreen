@@ -280,6 +280,15 @@ button { font: inherit; color: inherit; }
   color: var(--color-headline, var(--accent-text));
 }
 
+/* Highlighted part of a free text ("*text*", see rich() in shared.js); styled by the text element "highlight". */
+.hl {
+  font-family: var(--font-highlight, inherit);
+  font-size: calc(1em * var(--size-highlight, 1));
+  color: var(--color-highlight, var(--accent-text));
+}
+/* The headline already uses the accent color. */
+.kicker .hl { color: var(--color-highlight, var(--text)); }
+
 .kicker::after {
   content: "";
   display: block;
