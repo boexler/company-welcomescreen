@@ -4,7 +4,7 @@ A welcome screen for your reception area. When a company visits, the screen auto
 the employees who are coming – on exactly the days of the visit. Several visits on the same day are shown side by side.
 Around it: your own logo, the time, the weather and your guest Wi-Fi.
 
-![Welcome screen with three visits](docs/images/display-home.webp)
+![Welcome screen with three visits and a background video](docs/images/display-video.webp)
 
 <p>
   <img src="docs/images/display-weather.webp" alt="Weather" width="49%">
@@ -30,11 +30,11 @@ from Claude and other AI assistants (*"Northwind is visiting tomorrow with Anna 
 - **Weather** (Open-Meteo, no API key) and **guest Wi-Fi** with QR code.
 - **Emphasized text** – parts of the free texts can be highlighted in the accent color, bold and/or italic, e.g.
   `Bright***line*** ~Systems~`.
-- **Layouts** – background image, own logo and its size, colors, glass effect, spacing, and font, size and color of
-  every text element. Twelve open-source fonts are shipped (no external font services). Several layouts, e.g.
+- **Layouts** – background image or **background video** (muted loop with a soft cross-fade), own logo and its size,
+  colors, glass effect, spacing, and font, size and color of every text element. Twelve open-source fonts are shipped (no external font services). Several layouts, e.g.
   seasonal.
 - **Images by upload or URL** everywhere, **REST API** and **MCP server**, **English and German**, **SQLite** storage
-  in a single file.
+  (one database file; background videos as files next to it).
 
 ## Quick start
 
@@ -65,7 +65,8 @@ The full documentation with screenshots is in the **[Wiki](https://github.com/bo
 - [REST API](https://github.com/boexler/company-welcomescreen/wiki/REST-API) · [MCP Server](https://github.com/boexler/company-welcomescreen/wiki/MCP-Server)
 - [Languages](https://github.com/boexler/company-welcomescreen/wiki/Languages) · [Data and Backup](https://github.com/boexler/company-welcomescreen/wiki/Data-and-Backup)
 
-The screenshots show a fictional demo setup; all companies, people and the Wi-Fi are made up.
+The screenshots show a fictional demo setup; all companies, people and the Wi-Fi are made up. The background animation
+was generated for this project and contains no third-party material.
 
 ## Licenses
 
