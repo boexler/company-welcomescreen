@@ -16,7 +16,7 @@ from Claude and other AI assistants (*"Northwind is visiting tomorrow with Anna 
 
 <p>
   <img src="docs/images/admin-visit-edit.webp" alt="Scheduling a visit in the admin area" width="49%">
-  <img src="docs/images/admin-layout.webp" alt="Layout settings with live preview" width="49%">
+  <img src="docs/images/admin-layout.webp" alt="Layout page: active layout and another layout side by side" width="49%">
 </p>
 
 ## Features
