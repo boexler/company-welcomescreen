@@ -3,6 +3,7 @@ import multer from 'multer';
 import { config } from './config.js';
 import { requireAdmin, isAuthorized } from './auth.js';
 import { getImage, resolveImageUrls } from './images.js';
+import { MEDIA_DIR, mediaPath, resolveVideoUrls } from './media.js';
 import { HttpError } from './errors.js';
 import { LANGUAGES } from './i18n.js';
 import { getWeather, geocode } from './weather.js';
@@ -10,6 +11,10 @@ import { wifiQrSvg } from './wifi.js';
 import * as svc from './service.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: config.maxImageBytes, files: 2 } });
+// Layouts may carry a background video, which is much larger than an image (images are still limited when stored).
+const layoutUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: config.maxVideoBytes, files: 3 } })
+  .fields(['background', 'logo', 'background_video'].map((name) => ({ name, maxCount: 1 })));
+const layoutBody = async (req) => resolveVideoUrls(await withFiles(req, 'background', 'logo'), ['background_video']);
 
 // Images may be SVG; never let them execute scripts when opened directly.
 const IMAGE_HEADERS = {
@@ -53,6 +58,15 @@ export function createApiRouter() {
     const img = getImage(Number(req.params.id));
     if (!img) throw new HttpError(404, 'errors.imageNotFound');
     res.set({ ...IMAGE_HEADERS, 'Content-Type': img.mime, 'Cache-Control': 'public, max-age=31536000, immutable' }).send(img.data);
+  });
+
+  // --- Media (background videos; sendFile answers range requests) ----------
+  api.get('/media/:name', (req, res) => {
+    if (!mediaPath(req.params.name)) throw new HttpError(404, 'errors.mediaNotFound');
+    // `root` keeps dot folders in the data path from being rejected as dotfiles.
+    res.sendFile(req.params.name, { root: MEDIA_DIR, maxAge: '365d', immutable: true }, (err) => {
+      if (err && !res.headersSent) res.status(404).json({ error: 'Not found' });
+    });
   });
 
   // --- Companies -----------------------------------------------------------
@@ -101,8 +115,8 @@ export function createApiRouter() {
   api.get('/layouts/templates', (req, res) => res.json(svc.TEMPLATES));
   api.get('/layouts/typography', (req, res) => res.json({ elements: svc.TEXT_ELEMENTS, fonts: svc.FONTS }));
   api.get('/layouts/:ref', (req, res) => res.json(svc.getLayout(req.params.ref)));
-  api.post('/layouts', requireAdmin, images('background', 'logo'), async (req, res) => res.status(201).json(svc.createLayout(await withFiles(req, 'background', 'logo'))));
-  api.patch('/layouts/:ref', requireAdmin, images('background', 'logo'), async (req, res) => res.json(svc.updateLayout(req.params.ref, await withFiles(req, 'background', 'logo'))));
+  api.post('/layouts', requireAdmin, layoutUpload, async (req, res) => res.status(201).json(svc.createLayout(await layoutBody(req))));
+  api.patch('/layouts/:ref', requireAdmin, layoutUpload, async (req, res) => res.json(svc.updateLayout(req.params.ref, await layoutBody(req))));
   api.post('/layouts/:ref/activate', requireAdmin, (req, res) => res.json(svc.activateLayout(req.params.ref)));
   api.post('/layouts/:ref/copy', requireAdmin, (req, res) => res.status(201).json(svc.copyLayout(req.params.ref, req.body ?? {})));
   api.delete('/layouts/:ref', requireAdmin, (req, res) => res.json(svc.deleteLayout(req.params.ref)));

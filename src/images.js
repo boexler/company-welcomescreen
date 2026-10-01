@@ -37,30 +37,46 @@ const FETCH_TIMEOUT_MS = 15_000;
 
 export const isImageUrl = (value) => typeof value === 'string' && /^https?:\/\/\S+$/i.test(value.trim());
 
-/** Downloads an image (http/https) with a timeout and the same size limit as uploads. */
-export async function fetchImage(url) {
+/**
+ * Downloads a file (http/https) with a timeout and a size limit. `errors` names the messages for an unreachable
+ * address, an HTTP error status and a file that is too large.
+ */
+export async function fetchUrl(url, { maxBytes, timeoutMs, accept, errors }) {
   let res;
   try {
     res = await fetch(url.trim(), {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: { Accept: 'image/*', 'User-Agent': 'company-welcomescreen' },
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { Accept: accept, 'User-Agent': 'company-welcomescreen' },
     });
   } catch (err) {
-    throw new HttpError(400, 'errors.imageUrlUnreachable', { url, message: err.cause?.message ?? err.message });
+    throw new HttpError(400, errors.unreachable, { url, message: err.cause?.message ?? err.message });
   }
-  if (!res.ok) throw new HttpError(400, 'errors.imageUrlStatus', { url, status: res.status });
-  const tooLarge = () => new HttpError(413, 'errors.imageTooLarge', { max: config.maxImageBytes / 1024 / 1024 });
-  if (Number(res.headers.get('content-length')) > config.maxImageBytes) throw tooLarge();
+  if (!res.ok) throw new HttpError(400, errors.status, { url, status: res.status });
+  const tooLarge = () => new HttpError(413, errors.tooLarge, { max: maxBytes / 1024 / 1024 });
+  if (Number(res.headers.get('content-length')) > maxBytes) throw tooLarge();
 
   const chunks = [];
   let size = 0;
-  for await (const chunk of res.body) {
-    size += chunk.length;
-    if (size > config.maxImageBytes) throw tooLarge();
-    chunks.push(chunk);
+  try {
+    for await (const chunk of res.body) {
+      size += chunk.length;
+      if (size > maxBytes) throw tooLarge();
+      chunks.push(chunk);
+    }
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    throw new HttpError(400, errors.unreachable, { url, message: err.cause?.message ?? err.message });
   }
   return Buffer.concat(chunks);
 }
+
+/** Downloads an image with the same size limit as uploads. */
+export const fetchImage = (url) => fetchUrl(url, {
+  maxBytes: config.maxImageBytes,
+  timeoutMs: FETCH_TIMEOUT_MS,
+  accept: 'image/*',
+  errors: { unreachable: 'errors.imageUrlUnreachable', status: 'errors.imageUrlStatus', tooLarge: 'errors.imageTooLarge' },
+});
 
 /**
  * Replaces image URLs by the downloaded image, for each of `fields`: either the field itself contains an http(s) URL

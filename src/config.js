@@ -61,6 +61,8 @@ export const config = {
   adminTokenInfo: admin,
   timeZone: process.env.APP_TIMEZONE || 'Europe/Berlin',
   maxImageBytes: 8 * 1024 * 1024,
+  // Background videos of layouts (stored as files in <dataDir>/media).
+  maxVideoBytes: 60 * 1024 * 1024,
   // Initial values for settings that can later be changed in the admin UI.
   defaults: {
     language: process.env.APP_LANGUAGE || 'en',

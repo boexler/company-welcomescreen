@@ -6,6 +6,7 @@ import { isAuthorized } from './auth.js';
 import { HttpError } from './errors.js';
 import * as svc from './service.js';
 import { resolveImageUrls } from './images.js';
+import { resolveVideoUrls } from './media.js';
 
 const ref = z.union([z.number().int(), z.string().min(1)]);
 const companyRef = ref.describe('Company ID or exact company name');
@@ -134,11 +135,13 @@ function buildServer(baseUrl) {
 
   // Layouts & settings
   tool(server, 'list_layouts', 'Lists the layouts (appearance) and which one is active.', {}, () => svc.listLayouts());
-  tool(server, 'update_layout', 'Changes a layout: background image, logo top left (and its size), accent and text color, blur, dimming, spacing and fonts/sizes/colors of the text elements.', {
+  tool(server, 'update_layout', 'Changes a layout: background image and video, logo top left (and its size), accent and text color, blur, dimming, spacing and fonts/sizes/colors of the text elements.', {
     layout: layoutRef,
     name: z.string().min(1).optional().describe('New name (renames the layout; also possible for the active one)'),
     background: image.optional(),
     remove_background: z.boolean().optional(),
+    background_video: z.string().optional().describe('Background video as http(s) URL of an MP4 (H.264) or WebM file, max. 60 MB; the server downloads it. Plays muted in a loop; the background image stays as the fallback'),
+    remove_background_video: z.boolean().optional(),
     logo: image.optional(),
     remove_logo: z.boolean().optional(),
     accent_color: z.string().optional().describe('#RRGGBB'),
@@ -155,7 +158,7 @@ function buildServer(baseUrl) {
       color: z.string().optional().describe('#RRGGBB'),
     })).optional().describe(`Replaces all text settings. Keys: ${Object.entries(svc.TEXT_ELEMENTS).map(([k, v]) => `${k} (${v})`).join(', ')}`),
     activate: z.boolean().optional(),
-  }, async ({ layout, ...patch }) => svc.updateLayout(layout, await resolveImageUrls(patch, ['background', 'logo'])));
+  }, async ({ layout, ...patch }) => svc.updateLayout(layout, await resolveVideoUrls(await resolveImageUrls(patch, ['background', 'logo']), ['background_video'])));
   tool(server, 'copy_layout', 'Duplicates a layout with all its settings and images, e.g. as a starting point for a seasonal layout.', {
     layout: layoutRef,
     name: z.string().min(1).optional().describe('Name of the copy; default: "<name> (copy)"'),

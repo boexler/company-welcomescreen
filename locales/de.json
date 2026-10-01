@@ -210,6 +210,10 @@
       "none": "Noch keine Bilder im Pool."
     },
     "layouts": {
+      "backgroundVideo": "Hintergrundvideo",
+      "backgroundVideoHint": "MP4 (H.264) oder WebM, max. 60 MB. Läuft stumm in Endlosschleife und füllt den Bildschirm. Das Hintergrundbild bleibt als Rückfall: Es ist zu sehen, bis das Video geladen ist, und auf Geräten, die mit „?video=0“ aufgerufen werden.",
+      "videoUrl": "… oder Video-URL, z. B. https://example.com/video.mp4",
+      "removeVideo": "Video entfernen",
       "saveLayout": "„{name}“ speichern",
       "activeLayout": "Aktives Layout",
       "activeHint": "Dieses Layout zeigt der Bildschirm gerade. Änderungen sind nach dem Speichern sofort sichtbar.",
@@ -367,6 +371,11 @@
   },
 
   "errors": {
+    "videoTooLarge": "Das Video ist zu groß (max. {max} MB).",
+    "unknownVideoType": "Unbekanntes Videoformat. Erlaubt: MP4 (H.264) und WebM.",
+    "videoUrlUnreachable": "Video unter {url} nicht erreichbar: {message}",
+    "videoUrlStatus": "Video unter {url} konnte nicht geladen werden (HTTP {status}).",
+    "mediaNotFound": "Datei nicht gefunden.",
     "imageUrlUnreachable": "Bild unter {url} nicht erreichbar: {message}",
     "imageUrlStatus": "Bild unter {url} konnte nicht geladen werden (HTTP {status}).",
     "avatarNotFound": "Bild „{ref}“ nicht im Pool gefunden.",

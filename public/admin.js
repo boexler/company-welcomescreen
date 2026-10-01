@@ -97,6 +97,34 @@ const cssUrl = (src) => `url("${String(src).replace(/["\\\n]/g, encodeURICompone
 /** Web address of an image as an alternative to uploading a file; the server downloads it ("<name>_url"). */
 const imageUrlInput = (name, oninput) => h('input', { type: 'url', name, placeholder: t('common.imageUrl'), oninput });
 
+/** Upload, URL or removal of a video ("<name>", "<name>_url", "remove_<name>") with a small looping preview. */
+function videoInput(name, currentUrl) {
+  const preview = h('video', { class: 'preview cover dark', muted: true, loop: true, autoplay: true, playsinline: true });
+  preview.muted = true;
+  const show = (src) => {
+    if (src) preview.src = src;
+    else { preview.removeAttribute('src'); preview.load(); }
+  };
+  show(currentUrl);
+  const input = h('input', {
+    type: 'file', name, accept: 'video/mp4,video/webm',
+    onchange: () => {
+      const file = input.files[0];
+      if (!file) return;
+      url.value = '';
+      show(URL.createObjectURL(file));
+    },
+  });
+  const url = h('input', {
+    type: 'url', name: `${name}_url`, placeholder: t('admin.layouts.videoUrl'),
+    oninput: () => { input.value = ''; show(url.value.trim() || currentUrl); },
+  });
+  const remove = currentUrl
+    ? h('label', { class: 'check small' }, h('input', { type: 'checkbox', name: `remove_${name}`, value: '1', onchange: (e) => { preview.style.opacity = e.target.checked ? 0.25 : 1; } }), t('admin.layouts.removeVideo'))
+    : null;
+  return h('div', { class: 'image-field' }, preview, h('div', { class: 'stack', style: { flex: 1 } }, input, url, remove));
+}
+
 function imageInput(name, currentUrl, { cover = false, dark = false } = {}) {
   const preview = h('div', { class: `preview ${cover ? 'cover' : ''} ${dark ? 'dark' : ''}`, style: { backgroundImage: currentUrl ? cssUrl(currentUrl) : 'none' } });
   const showCurrent = () => { preview.style.backgroundImage = currentUrl ? cssUrl(currentUrl) : 'none'; };
@@ -873,6 +901,7 @@ function layoutForm(layout, templates, typographyMeta) {
     field(t('admin.layouts.template'), h('select', { name: 'template' },
       Object.entries(templates).map(([key, label]) => h('option', { value: key, selected: key === layout.template }, has(`admin.layouts.templates.${key}`) ? t(`admin.layouts.templates.${key}`) : label))))),
   field(t('admin.layouts.background'), imageInput('background', layout.background_url, { cover: true, dark: true }), t('admin.layouts.backgroundHint')),
+  field(t('admin.layouts.backgroundVideo'), videoInput('background_video', layout.background_video_url), t('admin.layouts.backgroundVideoHint')),
   field(t('admin.layouts.logo'), imageInput('logo', layout.logo_url, { dark: true }), t('admin.layouts.logoHint')),
   h('div', { class: 'row top' },
     slider(t('admin.layouts.logoSize'), 'logo_size', layout.logo_size, { min: 20, max: 400, step: 5, unit: ' %' }),

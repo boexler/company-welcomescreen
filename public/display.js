@@ -6,6 +6,8 @@ const params = new URLSearchParams(location.search);
 const previewDate = params.get('date');
 // Preview of a layout other than the active one (used by the admin area).
 const previewLayout = params.get('layout');
+// "?video=0" shows the background image instead of the background video (for weak devices).
+const videoEnabled = params.get('video') !== '0';
 
 const REFRESH_MS = 30_000;
 const WEATHER_REFRESH_MS = 10 * 60_000;
@@ -205,6 +207,8 @@ function applyLayout(layout) {
     bg.classList.remove('has-image');
   }
 
+  applyBackgroundVideo(layout.background_video_url);
+
   const logo = $('brand-logo');
   if (layout.logo_url) {
     if (logo.getAttribute('src') !== layout.logo_url) logo.src = layout.logo_url;
@@ -213,6 +217,99 @@ function applyLayout(layout) {
     logo.hidden = true;
   }
 }
+
+// Background video: plays muted in a loop. The background image stays visible until it plays (or if it fails).
+// Two players take turns so the loop restarts with a short cross-fade instead of a hard cut.
+const VIDEO_FADE_SECONDS = 1;
+const bgVideo = {
+  src: '',
+  players: [...document.querySelectorAll('#bg-videos video')],
+  active: 0,
+  fading: false,
+  timer: null,
+};
+
+/** Cross-fade duration: shorter for very short clips. */
+const videoFade = (video) => (Number.isFinite(video.duration) ? Math.min(VIDEO_FADE_SECONDS, video.duration / 4) : VIDEO_FADE_SECONDS);
+
+function startVideo(video) {
+  video.muted = true;
+  video.currentTime = 0;
+  video.play().catch(() => {});
+}
+
+function applyBackgroundVideo(url) {
+  const src = videoEnabled && url ? url : '';
+  if (bgVideo.src === src) {
+    // Called on every refresh: restart a video the browser paused (e.g. while the page was hidden).
+    resumeBackgroundVideo();
+    return;
+  }
+  clearTimeout(bgVideo.timer);
+  Object.assign(bgVideo, { src, active: 0, fading: false });
+  for (const video of bgVideo.players) {
+    video.pause();
+    video.classList.remove('show', 'front');
+    if (src) video.src = src;
+    else {
+      video.removeAttribute('src');
+      video.load();
+    }
+  }
+  $('bg-videos').hidden = !src;
+  if (src) startVideo(bgVideo.players[0]);
+}
+
+/** Starts the other player from the beginning on top of the current one; it fades in once it plays. */
+function crossfadeVideo() {
+  const current = bgVideo.players[bgVideo.active];
+  const next = bgVideo.players[1 - bgVideo.active];
+  bgVideo.fading = true;
+  bgVideo.active = 1 - bgVideo.active;
+  next.style.setProperty('--video-fade', `${videoFade(current)}s`);
+  current.classList.remove('front');
+  next.classList.add('front');
+  startVideo(next);
+  // If the next player never starts, give up the fade so the regular refresh can restart the video.
+  clearTimeout(bgVideo.timer);
+  bgVideo.timer = setTimeout(finishVideoFade, 8000);
+}
+
+/** After the fade the previous player is hidden below the current one and stops. */
+function finishVideoFade() {
+  const previous = bgVideo.players[1 - bgVideo.active];
+  previous.classList.remove('show');
+  previous.pause();
+  bgVideo.fading = false;
+}
+
+function resumeBackgroundVideo() {
+  const video = bgVideo.players[bgVideo.active];
+  if (!bgVideo.src || bgVideo.fading || document.hidden) return;
+  if (video.ended) startVideo(video);
+  else if (video.paused) video.play().catch(() => {});
+}
+
+for (const video of bgVideo.players) {
+  video.addEventListener('playing', () => {
+    video.classList.add('show');
+    if (bgVideo.fading && video === bgVideo.players[bgVideo.active]) {
+      clearTimeout(bgVideo.timer);
+      bgVideo.timer = setTimeout(finishVideoFade, videoFade(video) * 1000 + 100);
+    }
+  });
+  video.addEventListener('timeupdate', () => {
+    if (bgVideo.fading || video !== bgVideo.players[bgVideo.active] || !Number.isFinite(video.duration)) return;
+    // timeupdate fires about four times a second, hence the margin.
+    if (video.duration - video.currentTime <= videoFade(video) + 0.3) crossfadeVideo();
+  });
+  video.addEventListener('ended', () => {
+    if (!bgVideo.fading && video === bgVideo.players[bgVideo.active]) crossfadeVideo();
+  });
+  video.addEventListener('error', () => video.classList.remove('show'));
+}
+
+document.addEventListener('visibilitychange', resumeBackgroundVideo);
 
 function applyNav(data) {
   document.querySelector('.dock [data-view="weather"]').hidden = !data.weather;

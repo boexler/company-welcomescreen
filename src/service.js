@@ -2,6 +2,7 @@
 import { db, tx } from './db.js';
 import { config } from './config.js';
 import { storeImage, deleteImage } from './images.js';
+import { storeVideo, deleteVideo, copyVideo, mediaUrl } from './media.js';
 import { HttpError } from './errors.js';
 import { msg, translate, LANGUAGES, isLanguage, FALLBACK_LANGUAGE } from './i18n.js';
 
@@ -93,6 +94,20 @@ function replaceImage(currentId, input, remove) {
     return null;
   }
   return currentId;
+}
+
+/** Like replaceImage, for the video files of layouts. */
+function replaceVideo(current, input, remove) {
+  if (input != null && input !== '') {
+    const name = storeVideo(input);
+    deleteVideo(current);
+    return name;
+  }
+  if (remove) {
+    deleteVideo(current);
+    return null;
+  }
+  return current;
 }
 
 function isId(ref) {
@@ -661,12 +676,13 @@ function cleanTypography(value) {
 }
 
 function presentLayout(row, activeId = getSettings().active_layout_id) {
-  const { background_image_id, logo_image_id, typography, ...rest } = row;
+  const { background_image_id, logo_image_id, background_video, typography, ...rest } = row;
   return {
     ...rest,
     typography: JSON.parse(typography || '{}'),
     active: row.id === activeId,
     background_url: imageUrl(background_image_id),
+    background_video_url: mediaUrl(background_video),
     logo_url: imageUrl(logo_image_id),
   };
 }
@@ -711,14 +727,14 @@ function cleanTemplate(value) {
   return value;
 }
 
-export function createLayout({ name, template, background, logo, accent_color, text_color, blur, dim, activate, ...rest }) {
+export function createLayout({ name, template, background, background_video, logo, accent_color, text_color, blur, dim, activate, ...rest }) {
   return tx(() => {
     const cleanName = cleanText(name, { field: msg('fields.name'), required: true, max: 80 });
     const f = layoutFields(rest);
     const id = conflictOnUnique(
-      () => db.prepare(`INSERT INTO layouts (name, template, background_image_id, logo_image_id, accent_color, text_color, blur, dim,
-                        logo_size, company_logo_size, tile_gap, footer_gap, typography) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(cleanName, cleanTemplate(template) ?? 'glass', storeImage(background), storeImage(logo),
+      () => db.prepare(`INSERT INTO layouts (name, template, background_image_id, background_video, logo_image_id, accent_color, text_color, blur, dim,
+                        logo_size, company_logo_size, tile_gap, footer_gap, typography) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(cleanName, cleanTemplate(template) ?? 'glass', storeImage(background), storeVideo(background_video), storeImage(logo),
           cleanColor(accent_color) ?? '#4f8cff',
           cleanColor(text_color, msg('fields.textColor')) ?? '#ffffff',
           cleanInt(blur, { field: msg('fields.blur'), min: 0, max: 60 }) ?? 24,
@@ -732,17 +748,18 @@ export function createLayout({ name, template, background, logo, accent_color, t
   });
 }
 
-export function updateLayout(ref, { name, template, background, remove_background, logo, remove_logo, accent_color, text_color, blur, dim, activate, ...rest }) {
+export function updateLayout(ref, { name, template, background, remove_background, background_video, remove_background_video, logo, remove_logo, accent_color, text_color, blur, dim, activate, ...rest }) {
   return tx(() => {
     const id = resolveLayoutId(ref);
     const cur = db.prepare('SELECT * FROM layouts WHERE id = ?').get(id);
     const newName = cleanText(name, { field: msg('fields.name'), required: true, max: 80 }) ?? cur.name;
     const f = layoutFields(rest);
     conflictOnUnique(
-      () => db.prepare(`UPDATE layouts SET name = ?, template = ?, background_image_id = ?, logo_image_id = ?, accent_color = ?, text_color = ?, blur = ?, dim = ?,
+      () => db.prepare(`UPDATE layouts SET name = ?, template = ?, background_image_id = ?, background_video = ?, logo_image_id = ?, accent_color = ?, text_color = ?, blur = ?, dim = ?,
                         logo_size = ?, company_logo_size = ?, tile_gap = ?, footer_gap = ?, typography = ?, updated_at = datetime('now') WHERE id = ?`)
         .run(newName, cleanTemplate(template) ?? cur.template,
           replaceImage(cur.background_image_id, background, truthy(remove_background)),
+          replaceVideo(cur.background_video, background_video, truthy(remove_background_video)),
           replaceImage(cur.logo_image_id, logo, truthy(remove_logo)),
           cleanColor(accent_color) ?? cur.accent_color,
           cleanColor(text_color, msg('fields.textColor')) ?? cur.text_color,
@@ -758,12 +775,12 @@ export function updateLayout(ref, { name, template, background, remove_backgroun
 }
 
 /**
- * Duplicates a layout including its images (each layout owns its images). Without a name the copy is called
+ * Duplicates a layout including its images and video (each layout owns its files). Without a name the copy is called
  * "<name> (copy)" in the configured language, numbered if that name is taken.
  */
 export function copyLayout(ref, { name, activate } = {}) {
   return tx(() => {
-    const { id: sourceId, name: sourceName, created_at, updated_at, background_image_id, logo_image_id, ...values } =
+    const { id: sourceId, name: sourceName, created_at, updated_at, background_image_id, logo_image_id, background_video, ...values } =
       db.prepare('SELECT * FROM layouts WHERE id = ?').get(resolveLayoutId(ref));
     const exists = db.prepare('SELECT 1 FROM layouts WHERE name = ? COLLATE NOCASE');
     let newName = cleanText(name, { field: msg('fields.name'), max: 80 });
@@ -774,7 +791,13 @@ export function copyLayout(ref, { name, activate } = {}) {
     }
     const copyImage = (imageId) => (imageId == null ? null
       : db.prepare('INSERT INTO images (mime, data) SELECT mime, data FROM images WHERE id = ?').run(imageId).lastInsertRowid);
-    const row = { ...values, name: newName, background_image_id: copyImage(background_image_id), logo_image_id: copyImage(logo_image_id) };
+    const row = {
+      ...values,
+      name: newName,
+      background_image_id: copyImage(background_image_id),
+      logo_image_id: copyImage(logo_image_id),
+      background_video: copyVideo(background_video),
+    };
     const columns = Object.keys(row);
     const id = conflictOnUnique(
       () => db.prepare(`INSERT INTO layouts (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
@@ -799,6 +822,7 @@ export function deleteLayout(ref) {
     db.prepare('DELETE FROM layouts WHERE id = ?').run(id);
     deleteImage(row.background_image_id);
     deleteImage(row.logo_image_id);
+    deleteVideo(row.background_video);
     return { deleted: true, id, name: row.name };
   });
 }
