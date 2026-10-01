@@ -84,8 +84,10 @@
       "highlight": "hervorgehoben",
       "bold": "fett",
       "both": "fett und hervorgehoben",
+      "italic": "kursiv",
+      "all": "alles zusammen",
       "example": "Beispiel",
-      "note": "Gilt für die Texte dieser Felder. Farbe, Schrift und Größe der Hervorhebung stellst du unter „Layout“ in der Zeile „Hervorgehobener Text“ ein (Standard: Akzentfarbe). Ein echtes Sternchen schreibst du als \\*."
+      "note": "Gilt für die Texte dieser Felder. Farbe, Schrift und Größe der Hervorhebung stellst du unter „Layout“ in der Zeile „Hervorgehobener Text“ ein (Standard: Akzentfarbe). Die Zeichen lassen sich kombinieren. Ein echtes Sternchen oder eine echte Tilde schreibst du als \\* bzw. \\~."
     },
     "nav": {
       "visits": "Besuche",

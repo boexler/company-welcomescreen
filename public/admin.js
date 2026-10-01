@@ -153,8 +153,10 @@ function markupHelp() {
     h('div', { class: 'markup-examples' },
       example(`*${word}*`, t('admin.markup.highlight')),
       example(`**${word}**`, t('admin.markup.bold')),
-      example(`***${word}***`, t('admin.markup.both'))),
-    h('div', { class: 'markup-examples' }, example('Bright***line*** Systems', t('admin.markup.example'))),
+      example(`***${word}***`, t('admin.markup.both')),
+      example(`~${word}~`, t('admin.markup.italic')),
+      example(`~***${word}***~`, t('admin.markup.all'))),
+    h('div', { class: 'markup-examples' }, example('Bright***line*** ~Systems~', t('admin.markup.example'))),
     h('small', { class: 'faint' }, t('admin.markup.note')));
 }
 
@@ -162,7 +164,7 @@ function markupHelp() {
 function markupField(label, input, hint) {
   const preview = h('div', { class: 'markup-preview', hidden: true });
   const update = () => {
-    preview.hidden = !input.value.includes('*');
+    preview.hidden = !/[*~]/.test(input.value);
     preview.replaceChildren();
     if (!preview.hidden) append(preview, [h('span', { class: 'faint small' }, `${t('common.preview')}: `), rich(input.value)]);
   };

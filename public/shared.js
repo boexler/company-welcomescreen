@@ -40,12 +40,14 @@ export function hue(str) {
 //   *text*       highlighted – looks as defined in the layout (text element "highlight", default: accent color)
 //   **text**     bold
 //   ***text***   bold and highlighted
-// A backslash keeps an asterisk literal (\*). Everything is built as DOM nodes – no HTML is interpreted.
+//   ~text~       italic
+// The marks can be nested (~***text***~ = bold, highlighted and italic). A backslash keeps a character literal
+// (\*, \~). Everything is built as DOM nodes – no HTML is interpreted.
 
-const MARKUP = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*/g;
+const MARKUP = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|~(.+?)~/g;
 // Escaped characters are swapped for private-use characters while parsing.
 const SHIELD_BASE = 0xe000;
-const shield = (text) => String(text ?? '').replace(/\\([*\\])/g, (m, c) => String.fromCharCode(SHIELD_BASE + c.charCodeAt(0)));
+const shield = (text) => String(text ?? '').replace(/\\([*~\\])/g, (m, c) => String.fromCharCode(SHIELD_BASE + c.charCodeAt(0)));
 const unshield = (text) => [...text].map((c) => {
   const code = c.charCodeAt(0);
   return code >= SHIELD_BASE && code < SHIELD_BASE + 0x100 ? String.fromCharCode(code - SHIELD_BASE) : c;
@@ -58,7 +60,8 @@ function markupNodes(text) {
     if (m.index > last) nodes.push(unshield(text.slice(last, m.index)));
     if (m[1] != null) nodes.push(h('b', { class: 'hl' }, markupNodes(m[1])));
     else if (m[2] != null) nodes.push(h('b', null, markupNodes(m[2])));
-    else nodes.push(h('span', { class: 'hl' }, markupNodes(m[3])));
+    else if (m[3] != null) nodes.push(h('span', { class: 'hl' }, markupNodes(m[3])));
+    else nodes.push(h('i', null, markupNodes(m[4])));
     last = m.index + m[0].length;
   }
   if (last < text.length) nodes.push(unshield(text.slice(last)));

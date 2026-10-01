@@ -84,8 +84,10 @@
       "highlight": "highlighted",
       "bold": "bold",
       "both": "bold and highlighted",
+      "italic": "italic",
+      "all": "all combined",
       "example": "example",
-      "note": "Applies to the texts of these fields. Color, font and size of the highlight are set under “Layout” in the row “Highlighted text” (default: accent color). Write a literal asterisk as \\*."
+      "note": "Applies to the texts of these fields. Color, font and size of the highlight are set under “Layout” in the row “Highlighted text” (default: accent color). The marks can be combined. Write a literal asterisk or tilde as \\* or \\~."
     },
     "nav": {
       "visits": "Visits",

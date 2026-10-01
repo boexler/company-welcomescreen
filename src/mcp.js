@@ -114,7 +114,7 @@ function buildServer(baseUrl) {
     all_employees: z.boolean().optional().describe('true = all employees of the company (employees then only sets the order); false + no employees = no employees'),
     show_avatars: z.boolean().optional().describe('Show pictures of the employees (default: false, names only)'),
     headline: z.string().optional().describe('Custom headline; default: the greeting of the configured language'),
-    message: z.string().optional().describe('Additional text below the company name. Texts may emphasize parts: *text* = highlighted (styled by the layout, default accent color), **text** = bold, ***text*** = both'),
+    message: z.string().optional().describe('Additional text below the company name. Texts may emphasize parts: *text* = highlighted (styled by the layout, default accent color), **text** = bold, ***text*** = both, ~text~ = italic'),
     hosts: z.array(z.string()).optional().describe('In-house contacts, e.g. ["John Smith", "Jane Doe"]'),
   }, (a) => svc.createVisit(a));
   tool(server, 'update_visit', 'Changes a visit. employees = [] means all employees again (unless all_employees = false: then no employees).', {
