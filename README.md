@@ -28,8 +28,8 @@ from Claude and other AI assistants (*"Northwind is visiting tomorrow with Anna 
 - **Employee pictures** – own photo, a picture from the picture pool or initials in a color of your choice – switched
   on per visit (default: names only).
 - **Weather** (Open-Meteo, no API key) and **guest Wi-Fi** with QR code.
-- **Emphasized text** – parts of the free texts can be highlighted in the accent color and/or bold, e.g.
-  `Bright***line*** Systems`.
+- **Emphasized text** – parts of the free texts can be highlighted in the accent color, bold and/or italic, e.g.
+  `Bright***line*** ~Systems~`.
 - **Layouts** – background image, own logo and its size, colors, glass effect, spacing, and font, size and color of
   every text element. Twelve open-source fonts are shipped (no external font services). Several layouts, e.g.
   seasonal.
